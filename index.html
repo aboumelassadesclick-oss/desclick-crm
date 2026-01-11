@@ -10335,7 +10335,7 @@ function closeAccessModal() {
   if (modal) modal.remove();
 }
 
-function saveUserAccess(userId) {
+async function saveUserAccess(userId) {
   const user = data.users.find(u => u.id === userId);
   if (!user) return;
   
@@ -10350,11 +10350,27 @@ function saveUserAccess(userId) {
     return;
   }
   
-  user.accessTypes = accessTypes;
-  saveData();
-  closeAccessModal();
-  renderEquipe();
-  showToast('Succès', 'Accès mis à jour', 'success');
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      const result = await api.updateUser(userId, { accessTypes: JSON.stringify(accessTypes) });
+      if (result.success) {
+        user.accessTypes = accessTypes;
+        closeAccessModal();
+        renderEquipe();
+        showToast('Succès', 'Accès mis à jour', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      showToast('Erreur', 'Erreur de connexion', 'error');
+    }
+  } else {
+    user.accessTypes = accessTypes;
+    saveData();
+    closeAccessModal();
+    renderEquipe();
+    showToast('Succès', 'Accès mis à jour', 'success');
+  }
 }
 
 // Fonction pour filtrer les produits selon les accès de l'utilisateur
@@ -10382,10 +10398,10 @@ function getAccessiblePacks() {
   return PACKS_CATALOGUE.filter(p => userAccess.includes(p.access || 1));
 }
 
-function saveUtilisateur(e) {
+async function saveUtilisateur(e) {
   e.preventDefault();
   const form = e.target;
-  const id = parseInt(form.dataset.id);
+  const id = form.dataset.id;
   
   const existingUser = data.users.find(u => u.username === form.username.value && u.id !== id);
   if (existingUser) {
@@ -10404,49 +10420,96 @@ function saveUtilisateur(e) {
     return;
   }
   
-  if (id) {
-    const user = data.users.find(u => u.id === id);
-    if (user) {
-      user.firstName = form.firstName.value.trim();
-      user.lastName = form.lastName.value.trim();
-      user.email = form.email.value.trim();
-      user.phone = form.phone?.value.trim() || '';
-      user.accessTypes = accessTypes;
-      if (form.password.value) {
-        user.password = form.password.value;
-      }
-      user.updatedAt = new Date().toISOString();
-    }
-  } else {
-    data.lastId.user = (data.lastId.user || 0) + 1;
-    data.users.push({
-      id: data.lastId.user,
-      username: form.username.value.trim(),
-      password: form.password.value,
-      firstName: form.firstName.value.trim(),
-      lastName: form.lastName.value.trim(),
-      email: form.email.value.trim(),
-      phone: form.phone?.value.trim() || '',
-      role: 'commercial',
-      isActive: true,
-      accessTypes: accessTypes,
-      createdAt: new Date().toISOString()
-    });
+  const userData = {
+    username: form.username.value.trim(),
+    firstName: form.firstName.value.trim(),
+    lastName: form.lastName.value.trim(),
+    email: form.email.value.trim(),
+    phone: form.phone?.value.trim() || '',
+    role: 'commercial',
+    isActive: true,
+    accessTypes: JSON.stringify(accessTypes)
+  };
+  
+  if (form.password.value) {
+    userData.password = form.password.value;
   }
   
-  saveData();
-  closeModal();
-  renderEquipe();
-  showToast('Succès', id ? 'Utilisateur modifié' : 'Utilisateur créé', 'success');
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      let result;
+      if (id) {
+        result = await api.updateUser(id, userData);
+      } else {
+        result = await api.createUser(userData);
+      }
+      
+      if (result.success) {
+        // Recharger les utilisateurs depuis l'API
+        const usersRes = await api.getUsers();
+        if (usersRes.success) {
+          data.users = usersRes.data;
+        }
+        closeModal();
+        renderEquipe();
+        showToast('Succès', id ? 'Utilisateur modifié' : 'Utilisateur créé', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur lors de la sauvegarde', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur API:', error);
+      showToast('Erreur', 'Erreur de connexion à l\'API', 'error');
+    }
+  } else {
+    // Mode localStorage
+    if (id) {
+      const user = data.users.find(u => u.id === id);
+      if (user) {
+        Object.assign(user, userData);
+        user.accessTypes = accessTypes;
+        user.updatedAt = new Date().toISOString();
+      }
+    } else {
+      data.lastId.user = (data.lastId.user || 0) + 1;
+      data.users.push({
+        id: data.lastId.user,
+        ...userData,
+        accessTypes: accessTypes,
+        createdAt: new Date().toISOString()
+      });
+    }
+    
+    saveData();
+    closeModal();
+    renderEquipe();
+    showToast('Succès', id ? 'Utilisateur modifié' : 'Utilisateur créé', 'success');
+  }
 }
 
-function toggleUserStatus(id) {
+async function toggleUserStatus(id) {
   const user = data.users.find(u => u.id === id);
   if (user && user.role !== 'admin') {
-    user.isActive = !user.isActive;
-    saveData();
-    renderEquipe();
-    showToast('Succès', 'Utilisateur ' + (user.isActive ? 'activé' : 'désactivé'), 'success');
+    const newStatus = !user.isActive;
+    
+    if (USE_GOOGLE_SHEETS_API) {
+      try {
+        const result = await api.updateUser(id, { isActive: newStatus });
+        if (result.success) {
+          user.isActive = newStatus;
+          renderEquipe();
+          showToast('Succès', 'Utilisateur ' + (newStatus ? 'activé' : 'désactivé'), 'success');
+        } else {
+          showToast('Erreur', result.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        showToast('Erreur', 'Erreur de connexion', 'error');
+      }
+    } else {
+      user.isActive = newStatus;
+      saveData();
+      renderEquipe();
+      showToast('Succès', 'Utilisateur ' + (newStatus ? 'activé' : 'désactivé'), 'success');
+    }
   }
 }
 
