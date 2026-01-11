@@ -15545,82 +15545,6 @@ window.handleDrop = async function(e, stageId) {
 // 2. BOUTON TÉLÉCHARGER DONNÉES GOOGLE SHEETS
 // =====================================================
 
-window.downloadAllData = async function() {
-  showToast('Téléchargement', 'Préparation des données...', 'info');
-  
-  try {
-    // Collecter toutes les données
-    const allData = {
-      exportDate: new Date().toISOString(),
-      entreprises: data.entreprises || [],
-      contacts: data.contacts || [],
-      opportunites: data.opportunites || [],
-      produits: data.produits || [],
-      packs: data.packs || [],
-      commandes: data.orders || [],
-      rdv: data.rdv || [],
-      appels: data.appels || [],
-      taches: data.taches || [],
-      emails: data.emails || [],
-      users: (data.users || []).map(u => ({ ...u, password: '***' }))
-    };
-    
-    // Créer le fichier JSON
-    const jsonStr = JSON.stringify(allData, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `desclick-crm-export-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    showToast('Téléchargé', 'Données exportées avec succès', 'success');
-  } catch (error) {
-    showToast('Erreur', error.message, 'error');
-  }
-};
-
-window.downloadDataAsExcel = async function() {
-  showToast('Téléchargement', 'Préparation Excel...', 'info');
-  
-  try {
-    if (typeof XLSX === 'undefined') {
-      showToast('Erreur', 'Bibliothèque Excel non chargée', 'error');
-      return;
-    }
-    
-    const wb = XLSX.utils.book_new();
-    
-    // Ajouter chaque feuille
-    const sheets = {
-      'Entreprises': data.entreprises || [],
-      'Contacts': data.contacts || [],
-      'Opportunités': data.opportunites || [],
-      'Commandes': data.orders || [],
-      'RDV': data.rdv || [],
-      'Appels': data.appels || [],
-      'Tâches': data.taches || [],
-      'Emails': data.emails || []
-    };
-    
-    for (const [name, items] of Object.entries(sheets)) {
-      if (items.length > 0) {
-        const ws = XLSX.utils.json_to_sheet(items);
-        XLSX.utils.book_append_sheet(wb, ws, name);
-      }
-    }
-    
-    XLSX.writeFile(wb, `desclick-crm-export-${new Date().toISOString().split('T')[0]}.xlsx`);
-    showToast('Téléchargé', 'Fichier Excel exporté', 'success');
-  } catch (error) {
-    showToast('Erreur', error.message, 'error');
-  }
-};
-
 // =====================================================
 // 3. MENUS DÉROULANTS POUR STATUTS DANS LES TABLEAUX
 // =====================================================
@@ -15819,81 +15743,6 @@ window.populateCommercialSelect = function(selectId, selectedId = null) {
 // =====================================================
 
 // Cette fonction sera appelée après le chargement
-window.addDownloadButtons = function() {
-  // Trouver le header ou la zone appropriée
-  const headerActions = document.querySelector('.header-actions') || document.querySelector('.page-header .actions');
-  
-  if (!headerActions) {
-    // Créer un bouton flottant
-    const floatBtn = document.createElement('div');
-    floatBtn.id = 'downloadFloatBtn';
-    floatBtn.innerHTML = `
-      <button onclick="showDownloadMenu()" style="
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #2B5EA7, #1E4A8A);
-        color: white;
-        border: none;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        cursor: pointer;
-        font-size: 24px;
-        z-index: 1000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      " title="Télécharger les données">
-        📥
-      </button>
-    `;
-    document.body.appendChild(floatBtn);
-  }
-};
-
-window.showDownloadMenu = function() {
-  const menu = document.createElement('div');
-  menu.id = 'downloadMenu';
-  menu.innerHTML = `
-    <div style="
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 1001;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    " onclick="this.parentElement.remove()">
-      <div style="
-        background: var(--bg-primary);
-        border-radius: 16px;
-        padding: 24px;
-        min-width: 300px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-      " onclick="event.stopPropagation()">
-        <h3 style="margin-bottom: 16px; color: var(--text-primary);">📥 Télécharger les données</h3>
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <button onclick="downloadAllData(); document.getElementById('downloadMenu').remove();" class="btn btn-primary" style="width: 100%;">
-            📄 Export JSON (complet)
-          </button>
-          <button onclick="downloadDataAsExcel(); document.getElementById('downloadMenu').remove();" class="btn btn-success" style="width: 100%;">
-            📊 Export Excel
-          </button>
-          <button onclick="document.getElementById('downloadMenu').remove();" class="btn" style="width: 100%;">
-            Annuler
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(menu);
-};
-
 // =====================================================
 // 6. INITIALISATION
 // =====================================================
@@ -15930,7 +15779,7 @@ statusStyles.textContent = `
 document.head.appendChild(statusStyles);
 
 // Ajouter le bouton de téléchargement après le chargement
-// Bouton de téléchargement désactivé
+
 
 console.log('✅ Patch v6 chargé avec succès!');
 console.log('   - Drag & drop corrigé');
