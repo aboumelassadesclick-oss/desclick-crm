@@ -3956,6 +3956,9 @@
         </div>
       </div>
       <div class="top-bar-right">
+        <button class="top-bar-btn" onclick="syncFromGoogleSheets()" title="🔄 Synchroniser avec Google Sheets" style="position: relative;">
+          🔄
+        </button>
         <button class="top-bar-btn" onclick="toggleTheme()" title="Changer le thème">
           <span id="themeIcon">🌙</span>
         </button>
@@ -6381,10 +6384,67 @@ async function handleLogin(e) {
       
       if (result.success) {
         currentUser = result.data.user;
+        api.token = result.data.token || '';
+        
+        // Sauvegarder en localStorage
+        localStorage.setItem(API_CONFIG.TOKEN_KEY, api.token);
+        localStorage.setItem(API_CONFIG.USER_KEY, JSON.stringify(currentUser));
+        
         console.log('✅ Utilisateur connecté:', currentUser);
-        await loadData();
+        
+        // IMPORTANT: Charger les données depuis Google Sheets
+        showLoadingOverlay('Chargement des données depuis Google Sheets...');
+        
+        try {
+          console.log('📥 Début du chargement des données...');
+          
+          const [entreprisesRes, contactsRes, opportunitesRes, produitsRes, packsRes, 
+                 emailsRes, rdvRes, appelsRes, tachesRes, usersRes] = await Promise.all([
+            api.getEntreprises(),
+            api.getContacts(),
+            api.getOpportunites(),
+            api.getProduits(),
+            api.getPacks(),
+            api.getEmails(),
+            api.getRdv(),
+            api.getAppels(),
+            api.getTaches(),
+            currentUser?.role === 'admin' ? api.getUsers() : Promise.resolve({ success: true, data: [] })
+          ]);
+          
+          // Mettre à jour les données
+          data.entreprises = entreprisesRes.success ? (entreprisesRes.data || []) : [];
+          data.contacts = contactsRes.success ? (contactsRes.data || []) : [];
+          data.opportunites = opportunitesRes.success ? (opportunitesRes.data || []) : [];
+          data.emails = emailsRes.success ? (emailsRes.data || []) : [];
+          data.rdv = rdvRes.success ? (rdvRes.data || []) : [];
+          data.appels = appelsRes.success ? (appelsRes.data || []) : [];
+          data.taches = tachesRes.success ? (tachesRes.data || []) : [];
+          if (usersRes.success && usersRes.data) data.users = usersRes.data;
+          
+          // Log des données chargées
+          console.log('📊 Données chargées depuis Google Sheets:');
+          console.log('  - Entreprises:', data.entreprises.length);
+          console.log('  - Contacts:', data.contacts.length);
+          console.log('  - Opportunités:', data.opportunites.length);
+          console.log('  - RDV:', data.rdv.length);
+          console.log('  - Appels:', data.appels.length);
+          console.log('  - Tâches:', data.taches.length);
+          console.log('  - Emails:', data.emails.length);
+          
+          hideLoadingOverlay();
+          
+        } catch (loadError) {
+          console.error('❌ Erreur chargement données:', loadError);
+          hideLoadingOverlay();
+        }
+        
         showApp();
-        showToast('Connexion réussie', `Bienvenue ${currentUser.firstName} !`, 'success');
+        
+        const totalItems = (data.entreprises?.length || 0) + (data.contacts?.length || 0) + 
+                           (data.opportunites?.length || 0);
+        showToast('Connexion réussie', `Bienvenue ${currentUser.firstName} ! ${totalItems} éléments chargés.`, 'success');
+        
       } else {
         console.warn('⚠️ Échec connexion:', result.message);
         showToast('Erreur', result.message || 'Identifiants incorrects', 'error');
@@ -6859,7 +6919,7 @@ function renderEntreprises() {
           <strong>${e.name}</strong>
           ${e.tradeName ? `<br><small class="text-muted">${e.tradeName}</small>` : ''}
         </td>
-        <td><span class="badge badge-${getTypeBadge(e.type)}">${e.type}</span></td>
+        <td><select class="status-select" onchange="changeEntrepriseType('${e.id}', this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);font-size:12px;"><option value="Prospect" ${e.type === 'Prospect' ? 'selected' : ''}>🔵 Prospect</option><option value="Client" ${e.type === 'Client' ? 'selected' : ''}>🟢 Client</option><option value="Partenaire" ${e.type === 'Partenaire' ? 'selected' : ''}>🟣 Partenaire</option><option value="Inactif" ${e.type === 'Inactif' ? 'selected' : ''}>⚫ Inactif</option></select></td>
         <td>${e.contact || '-'}</td>
         <td>${e.phone || '-'}</td>
         <td>${e.city || '-'}</td>
@@ -11490,7 +11550,7 @@ function renderAdminEntreprises() {
     return `
       <tr>
         <td><strong>${e.name}</strong></td>
-        <td><span class="badge badge-${getTypeBadge(e.type)}">${e.type}</span></td>
+        <td><select class="status-select" onchange="changeEntrepriseType('${e.id}', this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);font-size:12px;"><option value="Prospect" ${e.type === 'Prospect' ? 'selected' : ''}>🔵 Prospect</option><option value="Client" ${e.type === 'Client' ? 'selected' : ''}>🟢 Client</option><option value="Partenaire" ${e.type === 'Partenaire' ? 'selected' : ''}>🟣 Partenaire</option><option value="Inactif" ${e.type === 'Inactif' ? 'selected' : ''}>⚫ Inactif</option></select></td>
         <td>${e.industry || '-'}</td>
         <td>${e.city || '-'}</td>
         <td>${owner?.firstName} ${owner?.lastName || ''}</td>
@@ -11982,6 +12042,22 @@ function openModal(type, id = null) {
       title.textContent = id ? 'Modifier le commercial' : 'Nouveau commercial';
       body.innerHTML = getUtilisateurForm(id);
       break;
+    case 'rdv':
+      title.textContent = id ? 'Modifier le RDV' : 'Nouveau RDV';
+      body.innerHTML = getRdvForm(id);
+      break;
+    case 'appel':
+      title.textContent = id ? 'Modifier l\'appel' : 'Nouvel appel';
+      body.innerHTML = getAppelForm(id);
+      break;
+    case 'tache':
+      title.textContent = id ? 'Modifier la tâche' : 'Nouvelle tâche';
+      body.innerHTML = getTacheForm(id);
+      break;
+    case 'email':
+      title.textContent = id ? 'Modifier l\'email' : 'Nouvel email';
+      body.innerHTML = getEmailForm(id);
+      break;
     default:
       return;
   }
@@ -12023,7 +12099,7 @@ function closeMainModal() {
 }
 
 function getEntrepriseForm(id) {
-  const e = id ? data.entreprises.find(ent => ent.id === id) : {};
+  const e = id ? data.entreprises.find(ent => String(ent.id) === String(id)) : {};
   // Trouver le contact principal associé
   const primaryContact = id ? data.contacts.find(c => c.entrepriseId === id && c.isPrimary) : null;
   
@@ -14040,12 +14116,17 @@ function renderRdv() {
         <td>${contact ? contact.firstName + ' ' + contact.lastName : '-'}</td>
         <td>${r.objet}</td>
         <td>${r.lieu || '-'}</td>
-        <td>${statutBadge}</td>
+        <td>
+          <select class="status-select" onchange="changeRdvStatut('${r.id}', this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);font-size:11px;">
+            <option value="a_confirmer" ${r.statut === 'a_confirmer' ? 'selected' : ''}>⏳ À confirmer</option>
+            <option value="confirme" ${r.statut === 'confirme' ? 'selected' : ''}>✅ Confirmé</option>
+            <option value="effectue" ${r.statut === 'effectue' ? 'selected' : ''}>✔️ Effectué</option>
+            <option value="annule" ${r.statut === 'annule' ? 'selected' : ''}>❌ Annulé</option>
+            <option value="reporte" ${r.statut === 'reporte' ? 'selected' : ''}>🔄 Reporté</option>
+          </select>
+        </td>
         <td>
           <div class="btn-group">
-            ${r.statut === 'a_confirmer' ? `<button class="btn btn-sm btn-success" onclick="confirmRdv(${r.id})" title="Confirmer">✅</button>` : ''}
-            ${r.statut === 'confirme' ? `<button class="btn btn-sm btn-primary" onclick="markRdvDone(${r.id})" title="Effectué">✔️</button>` : ''}
-            <button class="btn btn-sm" onclick="editRdv(${r.id})" title="Modifier">✏️</button>
             <button class="btn btn-sm" onclick="viewRdv('${r.id}')" title="Voir">👁️</button>
             <button class="btn btn-sm" onclick="openModal('rdv', '${r.id}')" title="Modifier">✏️</button>
             <button class="btn btn-sm btn-danger" onclick="deleteRdv('${r.id}')" title="Supprimer">🗑️</button>
@@ -14359,12 +14440,16 @@ function renderAppels() {
         <td>${entreprise?.name || '-'}</td>
         <td>${a.objet}</td>
         <td>${a.duree ? a.duree + ' min' : '-'}</td>
-        <td>${statutBadge}</td>
+        <td>
+          <select class="status-select" onchange="changeAppelStatut('${a.id}', this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);font-size:11px;">
+            <option value="planifie" ${a.statut === 'planifie' ? 'selected' : ''}>📞 Planifié</option>
+            <option value="effectue" ${a.statut === 'effectue' ? 'selected' : ''}>✅ Effectué</option>
+            <option value="manque" ${a.statut === 'manque' ? 'selected' : ''}>❌ Manqué</option>
+            <option value="a_rappeler" ${a.statut === 'a_rappeler' ? 'selected' : ''}>🔄 À rappeler</option>
+          </select>
+        </td>
         <td>
           <div class="btn-group">
-            ${a.statut === 'planifie' ? `<button class="btn btn-sm btn-success" onclick="markAppelDone(${a.id})" title="Effectué">✅</button>` : ''}
-            ${a.statut === 'manque' ? `<button class="btn btn-sm btn-warning" onclick="markAppelToCallback(${a.id})" title="À rappeler">🔄</button>` : ''}
-            <button class="btn btn-sm" onclick="editAppel(${a.id})" title="Modifier">✏️</button>
             <button class="btn btn-sm" onclick="viewAppel('${a.id}')" title="Voir">👁️</button>
             <button class="btn btn-sm" onclick="openModal('appel', '${a.id}')" title="Modifier">✏️</button>
             <button class="btn btn-sm btn-danger" onclick="deleteAppel('${a.id}')" title="Supprimer">🗑️</button>
@@ -14715,10 +14800,14 @@ function renderTaches() {
               ${isOverdue ? ' ⚠️ En retard' : ''}
             </span>
             <span class="badge badge-${getPrioriteBadgeClass(t.priorite)}">${t.priorite}</span>
+            <select class="status-select" onchange="changeTacheStatut('${t.id}', this.value)" style="padding:3px 6px;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);font-size:11px;margin-left:8px;">
+              <option value="a_faire" ${t.statut === 'a_faire' ? 'selected' : ''}>📋 À faire</option>
+              <option value="en_cours" ${t.statut === 'en_cours' ? 'selected' : ''}>🔄 En cours</option>
+              <option value="terminee" ${t.statut === 'terminee' ? 'selected' : ''}>✅ Terminée</option>
+            </select>
           </div>
         </div>
         <div class="tache-actions">
-          <button class="btn btn-sm" onclick="editTache(${t.id})" title="Modifier">✏️</button>
           <button class="btn btn-sm" onclick="viewTache('${t.id}')" title="Voir">👁️</button>
           <button class="btn btn-sm" onclick="openModal('tache', '${t.id}')" title="Modifier">✏️</button>
           <button class="btn btn-sm btn-danger" onclick="deleteTache('${t.id}')" title="Supprimer">🗑️</button>
@@ -15345,6 +15434,1257 @@ console.log('   - Admin pipeline avec drag & drop');
 console.log('   - Calendrier avec chargement API');
 console.log('   - Comparaisons ID uniformisées');
 
+
+
+
+// =====================================================
+// PATCH V6 - CORRECTIONS COMPLÈTES DESCLICK CRM
+// À insérer avant </script>
+// =====================================================
+
+console.log('🔧 Chargement du patch v6...');
+
+// =====================================================
+// 1. FIX DRAG & DROP - VERSION ROBUSTE
+// =====================================================
+
+// Variable globale pour le drag
+window.draggedOppId = null;
+
+// Nouvelle fonction handleDragStart
+window.handleDragStart = function(e, oppId) {
+  console.log('🎯 Drag Start:', oppId);
+  window.draggedOppId = String(oppId);
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(oppId));
+};
+
+// Nouvelle fonction handleDragEnd
+window.handleDragEnd = function(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.pipeline-column').forEach(col => {
+    col.classList.remove('drag-over');
+  });
+};
+
+// Nouvelle fonction handleDragOver
+window.handleDragOver = function(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+};
+
+// Nouvelle fonction handleDragLeave
+window.handleDragLeave = function(e) {
+  e.currentTarget.classList.remove('drag-over');
+};
+
+// Nouvelle fonction handleDrop - VERSION ROBUSTE
+window.handleDrop = async function(e, stageId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  
+  const oppId = window.draggedOppId || e.dataTransfer.getData('text/plain');
+  console.log('📥 Drop:', oppId, '→', stageId);
+  
+  if (!oppId) {
+    console.warn('Pas d\'ID d\'opportunité');
+    return;
+  }
+  
+  const opp = data.opportunites.find(o => String(o.id) === String(oppId));
+  if (!opp) {
+    console.warn('Opportunité non trouvée:', oppId);
+    return;
+  }
+  
+  const stage = PIPELINE_STAGES.find(s => s.id === stageId);
+  const oldStage = opp.stage;
+  
+  // Mettre à jour localement d'abord (optimistic update)
+  opp.stage = stageId;
+  opp.probability = stage?.probability || opp.probability;
+  opp.updatedAt = new Date().toISOString();
+  
+  // Rafraîchir l'affichage immédiatement
+  if (typeof renderPipeline === 'function') renderPipeline();
+  if (typeof renderAdminPipeline === 'function') renderAdminPipeline();
+  
+  // Sauvegarder via API
+  if (typeof USE_GOOGLE_SHEETS_API !== 'undefined' && USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+    try {
+      const result = await api.updateOpportunite(opp.id, { stage: stageId, probability: opp.probability });
+      
+      if (result.success) {
+        showToast('Déplacé', `${opp.name} → ${stage?.name}`, 'success');
+      } else {
+        // Rollback
+        opp.stage = oldStage;
+        if (typeof renderPipeline === 'function') renderPipeline();
+        if (typeof renderAdminPipeline === 'function') renderAdminPipeline();
+        showToast('Erreur', result.message || 'Erreur lors du déplacement', 'error');
+      }
+    } catch (error) {
+      // Rollback
+      opp.stage = oldStage;
+      if (typeof renderPipeline === 'function') renderPipeline();
+      if (typeof renderAdminPipeline === 'function') renderAdminPipeline();
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    // Mode local
+    if (typeof saveData === 'function') saveData();
+    showToast('Déplacé', `${opp.name} → ${stage?.name}`, 'success');
+  }
+  
+  window.draggedOppId = null;
+};
+
+// =====================================================
+// 2. BOUTON TÉLÉCHARGER DONNÉES GOOGLE SHEETS
+// =====================================================
+
+window.downloadAllData = async function() {
+  showToast('Téléchargement', 'Préparation des données...', 'info');
+  
+  try {
+    // Collecter toutes les données
+    const allData = {
+      exportDate: new Date().toISOString(),
+      entreprises: data.entreprises || [],
+      contacts: data.contacts || [],
+      opportunites: data.opportunites || [],
+      produits: data.produits || [],
+      packs: data.packs || [],
+      commandes: data.orders || [],
+      rdv: data.rdv || [],
+      appels: data.appels || [],
+      taches: data.taches || [],
+      emails: data.emails || [],
+      users: (data.users || []).map(u => ({ ...u, password: '***' }))
+    };
+    
+    // Créer le fichier JSON
+    const jsonStr = JSON.stringify(allData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `desclick-crm-export-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('Téléchargé', 'Données exportées avec succès', 'success');
+  } catch (error) {
+    showToast('Erreur', error.message, 'error');
+  }
+};
+
+window.downloadDataAsExcel = async function() {
+  showToast('Téléchargement', 'Préparation Excel...', 'info');
+  
+  try {
+    if (typeof XLSX === 'undefined') {
+      showToast('Erreur', 'Bibliothèque Excel non chargée', 'error');
+      return;
+    }
+    
+    const wb = XLSX.utils.book_new();
+    
+    // Ajouter chaque feuille
+    const sheets = {
+      'Entreprises': data.entreprises || [],
+      'Contacts': data.contacts || [],
+      'Opportunités': data.opportunites || [],
+      'Commandes': data.orders || [],
+      'RDV': data.rdv || [],
+      'Appels': data.appels || [],
+      'Tâches': data.taches || [],
+      'Emails': data.emails || []
+    };
+    
+    for (const [name, items] of Object.entries(sheets)) {
+      if (items.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(items);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      }
+    }
+    
+    XLSX.writeFile(wb, `desclick-crm-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast('Téléchargé', 'Fichier Excel exporté', 'success');
+  } catch (error) {
+    showToast('Erreur', error.message, 'error');
+  }
+};
+
+// =====================================================
+// 3. MENUS DÉROULANTS POUR STATUTS DANS LES TABLEAUX
+// =====================================================
+
+// Fonction générique pour créer un select de statut
+window.createStatusSelect = function(currentValue, options, onChange) {
+  const optionsHtml = options.map(opt => 
+    `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}>${opt.label}</option>`
+  ).join('');
+  
+  return `<select class="status-select" onchange="${onChange}" style="
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+  ">${optionsHtml}</select>`;
+};
+
+// Statuts disponibles
+window.STATUS_OPTIONS = {
+  entreprise: [
+    { value: 'Prospect', label: '🔵 Prospect' },
+    { value: 'Client', label: '🟢 Client' },
+    { value: 'Partenaire', label: '🟣 Partenaire' },
+    { value: 'Inactif', label: '⚫ Inactif' }
+  ],
+  opportunite: [
+    { value: 'prospection', label: '🔍 Prospection' },
+    { value: 'qualification', label: '📋 Qualification' },
+    { value: 'proposition', label: '📄 Proposition' },
+    { value: 'negociation', label: '🤝 Négociation' },
+    { value: 'cloture', label: '✅ Clôture' },
+    { value: 'gagnee', label: '🏆 Gagnée' },
+    { value: 'perdue', label: '❌ Perdue' }
+  ],
+  rdv: [
+    { value: 'a_confirmer', label: '⏳ À confirmer' },
+    { value: 'confirme', label: '✅ Confirmé' },
+    { value: 'effectue', label: '✔️ Effectué' },
+    { value: 'annule', label: '❌ Annulé' },
+    { value: 'reporte', label: '🔄 Reporté' }
+  ],
+  appel: [
+    { value: 'a_faire', label: '📞 À faire' },
+    { value: 'effectue', label: '✅ Effectué' },
+    { value: 'pas_reponse', label: '❌ Pas de réponse' },
+    { value: 'rappeler', label: '🔄 Rappeler' }
+  ],
+  tache: [
+    { value: 'a_faire', label: '📋 À faire' },
+    { value: 'en_cours', label: '🔄 En cours' },
+    { value: 'terminee', label: '✅ Terminée' },
+    { value: 'annulee', label: '❌ Annulée' }
+  ],
+  commande: [
+    { value: 'brouillon', label: '📝 Brouillon' },
+    { value: 'validee', label: '✅ Validée' },
+    { value: 'livree', label: '📦 Livrée' },
+    { value: 'payee', label: '💰 Payée' },
+    { value: 'annulee', label: '❌ Annulée' }
+  ]
+};
+
+// Fonctions pour changer les statuts
+window.changeEntrepriseType = async function(id, newType) {
+  const ent = data.entreprises.find(e => String(e.id) === String(id));
+  if (!ent) return;
+  
+  ent.type = newType;
+  
+  if (typeof USE_GOOGLE_SHEETS_API !== 'undefined' && USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+    try {
+      await api.updateEntreprise(id, { type: newType });
+      showToast('Mis à jour', `Type: ${newType}`, 'success');
+    } catch (e) {
+      showToast('Erreur', e.message, 'error');
+    }
+  }
+  renderEntreprises();
+};
+
+window.changeOpportuniteStage = async function(id, newStage) {
+  const opp = data.opportunites.find(o => String(o.id) === String(id));
+  if (!opp) return;
+  
+  opp.stage = newStage;
+  const stage = PIPELINE_STAGES.find(s => s.id === newStage);
+  opp.probability = stage?.probability || opp.probability;
+  
+  if (typeof USE_GOOGLE_SHEETS_API !== 'undefined' && USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+    try {
+      await api.updateOpportunite(id, { stage: newStage, probability: opp.probability });
+      showToast('Mis à jour', `Étape: ${stage?.name || newStage}`, 'success');
+    } catch (e) {
+      showToast('Erreur', e.message, 'error');
+    }
+  }
+  if (typeof renderOpportunites === 'function') renderOpportunites();
+  if (typeof renderPipeline === 'function') renderPipeline();
+};
+
+window.changeRdvStatut = async function(id, newStatut) {
+  const rdv = data.rdv.find(r => String(r.id) === String(id));
+  if (!rdv) return;
+  
+  rdv.statut = newStatut;
+  
+  if (typeof USE_GOOGLE_SHEETS_API !== 'undefined' && USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+    try {
+      await api.updateRdv(id, { statut: newStatut });
+      showToast('Mis à jour', `Statut RDV: ${newStatut}`, 'success');
+    } catch (e) {
+      showToast('Erreur', e.message, 'error');
+    }
+  }
+  renderRdv();
+};
+
+window.changeAppelStatut = async function(id, newStatut) {
+  const appel = data.appels.find(a => String(a.id) === String(id));
+  if (!appel) return;
+  
+  appel.statut = newStatut;
+  
+  if (typeof USE_GOOGLE_SHEETS_API !== 'undefined' && USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+    try {
+      await api.updateAppel(id, { statut: newStatut });
+      showToast('Mis à jour', `Statut appel: ${newStatut}`, 'success');
+    } catch (e) {
+      showToast('Erreur', e.message, 'error');
+    }
+  }
+  renderAppels();
+};
+
+window.changeTacheStatut = async function(id, newStatut) {
+  const tache = data.taches.find(t => String(t.id) === String(id));
+  if (!tache) return;
+  
+  tache.statut = newStatut;
+  
+  if (typeof USE_GOOGLE_SHEETS_API !== 'undefined' && USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+    try {
+      await api.updateTache(id, { statut: newStatut });
+      showToast('Mis à jour', `Statut tâche: ${newStatut}`, 'success');
+    } catch (e) {
+      showToast('Erreur', e.message, 'error');
+    }
+  }
+  renderTaches();
+};
+
+// =====================================================
+// 4. FIX FORMULAIRES - CHARGEMENT DES DONNÉES
+// =====================================================
+
+// Fonction pour pré-remplir les selects d'entreprises
+window.populateEntrepriseSelect = function(selectId, selectedId = null) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  
+  const entreprises = data.entreprises || [];
+  select.innerHTML = '<option value="">-- Sélectionner --</option>' +
+    entreprises.map(e => `<option value="${e.id}" ${String(e.id) === String(selectedId) ? 'selected' : ''}>${e.name}</option>`).join('');
+};
+
+// Fonction pour pré-remplir les selects de contacts
+window.populateContactSelect = function(selectId, entrepriseId = null, selectedId = null) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  
+  let contacts = data.contacts || [];
+  if (entrepriseId) {
+    contacts = contacts.filter(c => String(c.entrepriseId) === String(entrepriseId));
+  }
+  
+  select.innerHTML = '<option value="">-- Sélectionner --</option>' +
+    contacts.map(c => `<option value="${c.id}" ${String(c.id) === String(selectedId) ? 'selected' : ''}>${c.firstName} ${c.lastName}</option>`).join('');
+};
+
+// Fonction pour pré-remplir les selects de commerciaux
+window.populateCommercialSelect = function(selectId, selectedId = null) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  
+  const commerciaux = (data.users || []).filter(u => u.role === 'commercial' || u.role === 'admin');
+  select.innerHTML = '<option value="">-- Sélectionner --</option>' +
+    commerciaux.map(u => `<option value="${u.id}" ${String(u.id) === String(selectedId) ? 'selected' : ''}>${u.firstName} ${u.lastName}</option>`).join('');
+};
+
+// =====================================================
+// 5. AJOUTER LE BOUTON DE TÉLÉCHARGEMENT DANS LE HEADER
+// =====================================================
+
+// Cette fonction sera appelée après le chargement
+window.addDownloadButtons = function() {
+  // Trouver le header ou la zone appropriée
+  const headerActions = document.querySelector('.header-actions') || document.querySelector('.page-header .actions');
+  
+  if (!headerActions) {
+    // Créer un bouton flottant
+    const floatBtn = document.createElement('div');
+    floatBtn.id = 'downloadFloatBtn';
+    floatBtn.innerHTML = `
+      <button onclick="showDownloadMenu()" style="
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #2B5EA7, #1E4A8A);
+        color: white;
+        border: none;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        cursor: pointer;
+        font-size: 24px;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      " title="Télécharger les données">
+        📥
+      </button>
+    `;
+    document.body.appendChild(floatBtn);
+  }
+};
+
+window.showDownloadMenu = function() {
+  const menu = document.createElement('div');
+  menu.id = 'downloadMenu';
+  menu.innerHTML = `
+    <div style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1001;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    " onclick="this.parentElement.remove()">
+      <div style="
+        background: var(--bg-primary);
+        border-radius: 16px;
+        padding: 24px;
+        min-width: 300px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      " onclick="event.stopPropagation()">
+        <h3 style="margin-bottom: 16px; color: var(--text-primary);">📥 Télécharger les données</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <button onclick="downloadAllData(); document.getElementById('downloadMenu').remove();" class="btn btn-primary" style="width: 100%;">
+            📄 Export JSON (complet)
+          </button>
+          <button onclick="downloadDataAsExcel(); document.getElementById('downloadMenu').remove();" class="btn btn-success" style="width: 100%;">
+            📊 Export Excel
+          </button>
+          <button onclick="document.getElementById('downloadMenu').remove();" class="btn" style="width: 100%;">
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(menu);
+};
+
+// =====================================================
+// 6. INITIALISATION
+// =====================================================
+
+// Ajouter les styles pour les selects de statut
+const statusStyles = document.createElement('style');
+statusStyles.textContent = `
+  .status-select {
+    transition: all 0.2s;
+  }
+  .status-select:hover {
+    border-color: var(--brand-primary);
+  }
+  .status-select:focus {
+    outline: none;
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px rgba(43, 94, 167, 0.2);
+  }
+  .pipeline-column.drag-over {
+    background: rgba(43, 94, 167, 0.1) !important;
+    border: 2px dashed var(--brand-primary) !important;
+  }
+  .pipeline-card.dragging {
+    opacity: 0.5;
+    transform: rotate(3deg);
+  }
+  .pipeline-card {
+    cursor: grab;
+  }
+  .pipeline-card:active {
+    cursor: grabbing;
+  }
+`;
+document.head.appendChild(statusStyles);
+
+// Ajouter le bouton de téléchargement après le chargement
+// Bouton de téléchargement désactivé
+
+console.log('✅ Patch v6 chargé avec succès!');
+console.log('   - Drag & drop corrigé');
+console.log('   - Boutons téléchargement ajoutés');
+console.log('   - Selects de statut disponibles');
+console.log('   - Fonctions de formulaires améliorées');
+
+
+
+
+// =====================================================
+// FONCTIONS DE FORMULAIRES MANQUANTES
+// =====================================================
+
+function getRdvForm(id) {
+  const r = id ? (data.rdv || []).find(rdv => String(rdv.id) === String(id)) : {};
+  const entreprises = data.entreprises || [];
+  const contacts = data.contacts || [];
+  
+  const entrepriseOptions = entreprises.map(e => 
+    `<option value="${e.id}" ${String(e.id) === String(r.entrepriseId) ? 'selected' : ''}>${e.name}</option>`
+  ).join('');
+  
+  const contactOptions = contacts.map(c => 
+    `<option value="${c.id}" ${String(c.id) === String(r.contactId) ? 'selected' : ''}>${c.firstName} ${c.lastName}</option>`
+  ).join('');
+  
+  return `
+    <form onsubmit="saveRdvFromModal(event)" data-id="${id || ''}">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date <span class="required">*</span></label>
+          <input type="date" class="form-control" name="date" value="${r.date || ''}" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Heure <span class="required">*</span></label>
+          <input type="time" class="form-control" name="heure" value="${r.heure || ''}" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Entreprise</label>
+          <select class="form-control" name="entrepriseId" onchange="updateContactsForEntreprise(this.value, 'contactIdRdv')">
+            <option value="">-- Sélectionner --</option>
+            ${entrepriseOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contact</label>
+          <select class="form-control" name="contactId" id="contactIdRdv">
+            <option value="">-- Sélectionner --</option>
+            ${contactOptions}
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Objet <span class="required">*</span></label>
+        <input type="text" class="form-control" name="objet" value="${r.objet || ''}" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lieu</label>
+        <input type="text" class="form-control" name="lieu" value="${r.lieu || ''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Statut</label>
+        <select class="form-control" name="statut">
+          <option value="a_confirmer" ${r.statut === 'a_confirmer' ? 'selected' : ''}>À confirmer</option>
+          <option value="confirme" ${r.statut === 'confirme' ? 'selected' : ''}>Confirmé</option>
+          <option value="effectue" ${r.statut === 'effectue' ? 'selected' : ''}>Effectué</option>
+          <option value="annule" ${r.statut === 'annule' ? 'selected' : ''}>Annulé</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-control" name="notes" rows="3">${r.notes || ''}</textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `;
+}
+
+function getAppelForm(id) {
+  const a = id ? (data.appels || []).find(appel => String(appel.id) === String(id)) : {};
+  const entreprises = data.entreprises || [];
+  
+  const entrepriseOptions = entreprises.map(e => 
+    `<option value="${e.id}" ${String(e.id) === String(a.entrepriseId) ? 'selected' : ''}>${e.name}</option>`
+  ).join('');
+  
+  return `
+    <form onsubmit="saveAppelFromModal(event)" data-id="${id || ''}">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date <span class="required">*</span></label>
+          <input type="date" class="form-control" name="date" value="${a.date || ''}" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Heure <span class="required">*</span></label>
+          <input type="time" class="form-control" name="heure" value="${a.heure || ''}" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Contact <span class="required">*</span></label>
+          <input type="text" class="form-control" name="contact" value="${a.contact || ''}" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Téléphone <span class="required">*</span></label>
+          <input type="tel" class="form-control" name="telephone" value="${a.telephone || ''}" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Entreprise</label>
+        <select class="form-control" name="entrepriseId">
+          <option value="">-- Sélectionner --</option>
+          ${entrepriseOptions}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Objet <span class="required">*</span></label>
+        <input type="text" class="form-control" name="objet" value="${a.objet || ''}" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Durée (min)</label>
+          <input type="number" class="form-control" name="duree" value="${a.duree || ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Statut</label>
+          <select class="form-control" name="statut">
+            <option value="planifie" ${a.statut === 'planifie' ? 'selected' : ''}>Planifié</option>
+            <option value="effectue" ${a.statut === 'effectue' ? 'selected' : ''}>Effectué</option>
+            <option value="manque" ${a.statut === 'manque' ? 'selected' : ''}>Manqué</option>
+            <option value="a_rappeler" ${a.statut === 'a_rappeler' ? 'selected' : ''}>À rappeler</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-control" name="notes" rows="3">${a.notes || ''}</textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `;
+}
+
+function getTacheForm(id) {
+  const t = id ? (data.taches || []).find(tache => String(tache.id) === String(id)) : {};
+  const entreprises = data.entreprises || [];
+  
+  const entrepriseOptions = entreprises.map(e => 
+    `<option value="${e.id}" ${String(e.id) === String(t.entrepriseId) ? 'selected' : ''}>${e.name}</option>`
+  ).join('');
+  
+  return `
+    <form onsubmit="saveTacheFromModal(event)" data-id="${id || ''}">
+      <div class="form-group">
+        <label class="form-label">Titre <span class="required">*</span></label>
+        <input type="text" class="form-control" name="titre" value="${t.titre || ''}" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="form-control" name="description" rows="3">${t.description || ''}</textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Entreprise</label>
+          <select class="form-control" name="entrepriseId">
+            <option value="">-- Sélectionner --</option>
+            ${entrepriseOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Échéance</label>
+          <input type="date" class="form-control" name="echeance" value="${t.echeance || ''}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Priorité</label>
+          <select class="form-control" name="priorite">
+            <option value="basse" ${t.priorite === 'basse' ? 'selected' : ''}>Basse</option>
+            <option value="normale" ${t.priorite === 'normale' || !t.priorite ? 'selected' : ''}>Normale</option>
+            <option value="haute" ${t.priorite === 'haute' ? 'selected' : ''}>Haute</option>
+            <option value="urgente" ${t.priorite === 'urgente' ? 'selected' : ''}>Urgente</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Statut</label>
+          <select class="form-control" name="statut">
+            <option value="a_faire" ${t.statut === 'a_faire' || !t.statut ? 'selected' : ''}>À faire</option>
+            <option value="en_cours" ${t.statut === 'en_cours' ? 'selected' : ''}>En cours</option>
+            <option value="terminee" ${t.statut === 'terminee' ? 'selected' : ''}>Terminée</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+      </div>
+    </form>
+  `;
+}
+
+function getEmailForm(id) {
+  const e = id ? (data.emails || []).find(email => String(email.id) === String(id)) : {};
+  const contacts = data.contacts || [];
+  
+  const contactOptions = contacts.map(c => 
+    `<option value="${c.id}" ${String(c.id) === String(e.contactId) ? 'selected' : ''}>${c.firstName} ${c.lastName} (${c.email || 'pas d\'email'})</option>`
+  ).join('');
+  
+  return `
+    <form onsubmit="saveEmailFromModal(event)" data-id="${id || ''}">
+      <div class="form-group">
+        <label class="form-label">Destinataire <span class="required">*</span></label>
+        <input type="email" class="form-control" name="to" value="${e.to || ''}" required placeholder="email@example.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contact associé</label>
+        <select class="form-control" name="contactId" onchange="fillEmailFromContact(this.value)">
+          <option value="">-- Sélectionner --</option>
+          ${contactOptions}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Objet <span class="required">*</span></label>
+        <input type="text" class="form-control" name="subject" value="${e.subject || ''}" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message <span class="required">*</span></label>
+        <textarea class="form-control" name="body" rows="6" required>${e.body || ''}</textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">Annuler</button>
+        <button type="submit" class="btn btn-primary">${id ? 'Enregistrer' : 'Envoyer'}</button>
+      </div>
+    </form>
+  `;
+}
+
+// Fonctions de sauvegarde
+async function saveRdvFromModal(event) {
+  event.preventDefault();
+  const form = event.target;
+  const id = form.dataset.id;
+  
+  const rdvData = {
+    date: form.date.value,
+    heure: form.heure.value,
+    entrepriseId: form.entrepriseId?.value || '',
+    contactId: form.contactId?.value || '',
+    objet: form.objet.value,
+    lieu: form.lieu?.value || '',
+    statut: form.statut?.value || 'a_confirmer',
+    notes: form.notes?.value || ''
+  };
+  
+  try {
+    showLoadingOverlay('Enregistrement...');
+    let result;
+    
+    if (typeof USE_GOOGLE_SHEETS_API !== 'undefined' && USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+      if (id) {
+        result = await api.updateRdv(id, rdvData);
+      } else {
+        result = await api.createRdv(rdvData);
+      }
+    } else {
+      // Mode local
+      if (id) {
+        const rdv = data.rdv.find(r => String(r.id) === String(id));
+        Object.assign(rdv, rdvData);
+      } else {
+        data.rdv = data.rdv || [];
+        data.rdv.push({ id: Date.now(), ...rdvData, ownerId: currentUser.id });
+      }
+      result = { success: true };
+    }
+    
+    hideLoadingOverlay();
+    
+    if (result.success) {
+      closeModal();
+      if (typeof renderRdv === 'function') renderRdv();
+      if (typeof renderCalendrier === 'function') renderCalendrier();
+      showToast('Succès', id ? 'RDV modifié' : 'RDV créé', 'success');
+    } else {
+      showToast('Erreur', result.message || 'Erreur', 'error');
+    }
+  } catch (e) {
+    hideLoadingOverlay();
+    showToast('Erreur', e.message, 'error');
+  }
+}
+
+async function saveAppelFromModal(event) {
+  event.preventDefault();
+  const form = event.target;
+  const id = form.dataset.id;
+  
+  const appelData = {
+    date: form.date.value,
+    heure: form.heure.value,
+    contact: form.contact.value,
+    telephone: form.telephone.value,
+    entrepriseId: form.entrepriseId?.value || '',
+    objet: form.objet.value,
+    duree: form.duree?.value || '',
+    statut: form.statut?.value || 'planifie',
+    notes: form.notes?.value || ''
+  };
+  
+  try {
+    showLoadingOverlay('Enregistrement...');
+    let result;
+    
+    if (typeof USE_GOOGLE_SHEETS_API !== 'undefined' && USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+      if (id) {
+        result = await api.updateAppel(id, appelData);
+      } else {
+        result = await api.createAppel(appelData);
+      }
+    } else {
+      if (id) {
+        const appel = data.appels.find(a => String(a.id) === String(id));
+        Object.assign(appel, appelData);
+      } else {
+        data.appels = data.appels || [];
+        data.appels.push({ id: Date.now(), ...appelData, ownerId: currentUser.id });
+      }
+      result = { success: true };
+    }
+    
+    hideLoadingOverlay();
+    
+    if (result.success) {
+      closeModal();
+      if (typeof renderAppels === 'function') renderAppels();
+      showToast('Succès', id ? 'Appel modifié' : 'Appel créé', 'success');
+    } else {
+      showToast('Erreur', result.message || 'Erreur', 'error');
+    }
+  } catch (e) {
+    hideLoadingOverlay();
+    showToast('Erreur', e.message, 'error');
+  }
+}
+
+async function saveTacheFromModal(event) {
+  event.preventDefault();
+  const form = event.target;
+  const id = form.dataset.id;
+  
+  const tacheData = {
+    titre: form.titre.value,
+    description: form.description?.value || '',
+    entrepriseId: form.entrepriseId?.value || '',
+    echeance: form.echeance?.value || '',
+    priorite: form.priorite?.value || 'normale',
+    statut: form.statut?.value || 'a_faire'
+  };
+  
+  try {
+    showLoadingOverlay('Enregistrement...');
+    let result;
+    
+    if (typeof USE_GOOGLE_SHEETS_API !== 'undefined' && USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+      if (id) {
+        result = await api.updateTache(id, tacheData);
+      } else {
+        result = await api.createTache(tacheData);
+      }
+    } else {
+      if (id) {
+        const tache = data.taches.find(t => String(t.id) === String(id));
+        Object.assign(tache, tacheData);
+      } else {
+        data.taches = data.taches || [];
+        data.taches.push({ id: Date.now(), ...tacheData, ownerId: currentUser.id });
+      }
+      result = { success: true };
+    }
+    
+    hideLoadingOverlay();
+    
+    if (result.success) {
+      closeModal();
+      if (typeof renderTaches === 'function') renderTaches();
+      showToast('Succès', id ? 'Tâche modifiée' : 'Tâche créée', 'success');
+    } else {
+      showToast('Erreur', result.message || 'Erreur', 'error');
+    }
+  } catch (e) {
+    hideLoadingOverlay();
+    showToast('Erreur', e.message, 'error');
+  }
+}
+
+async function saveEmailFromModal(event) {
+  event.preventDefault();
+  const form = event.target;
+  const id = form.dataset.id;
+  
+  const emailData = {
+    to: form.to.value,
+    contactId: form.contactId?.value || '',
+    subject: form.subject.value,
+    body: form.body.value,
+    statut: 'brouillon'
+  };
+  
+  try {
+    showLoadingOverlay('Enregistrement...');
+    let result;
+    
+    if (typeof USE_GOOGLE_SHEETS_API !== 'undefined' && USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+      if (id) {
+        result = await api.updateEmail(id, emailData);
+      } else {
+        // Envoyer directement
+        result = await api.request('sendEmail', { data: emailData });
+      }
+    } else {
+      if (id) {
+        const email = data.emails.find(e => String(e.id) === String(id));
+        Object.assign(email, emailData);
+      } else {
+        data.emails = data.emails || [];
+        data.emails.push({ id: Date.now(), ...emailData, ownerId: currentUser.id, dateEnvoi: new Date().toISOString() });
+      }
+      result = { success: true };
+    }
+    
+    hideLoadingOverlay();
+    
+    if (result.success) {
+      closeModal();
+      if (typeof renderEmails === 'function') renderEmails();
+      showToast('Succès', id ? 'Email modifié' : 'Email envoyé', 'success');
+    } else {
+      showToast('Erreur', result.message || 'Erreur', 'error');
+    }
+  } catch (e) {
+    hideLoadingOverlay();
+    showToast('Erreur', e.message, 'error');
+  }
+}
+
+// Fonction utilitaire pour mettre à jour les contacts selon l'entreprise
+function updateContactsForEntreprise(entrepriseId, selectId) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  
+  let contacts = data.contacts || [];
+  if (entrepriseId) {
+    contacts = contacts.filter(c => String(c.entrepriseId) === String(entrepriseId));
+  }
+  
+  select.innerHTML = '<option value="">-- Sélectionner --</option>' +
+    contacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName}</option>`).join('');
+}
+
+function fillEmailFromContact(contactId) {
+  const contact = (data.contacts || []).find(c => String(c.id) === String(contactId));
+  if (contact && contact.email) {
+    const toField = document.querySelector('input[name="to"]');
+    if (toField) toField.value = contact.email;
+  }
+}
+
+console.log('✅ Fonctions de formulaires chargées');
+
+
+
+
+// =====================================================
+// PATCH CHARGEMENT DONNÉES GOOGLE SHEETS
+// =====================================================
+
+console.log('🔄 Initialisation du patch de chargement des données...');
+
+// Forcer le rechargement des données depuis Google Sheets
+window.forceReloadFromGoogleSheets = async function() {
+  console.log('🔄 Rechargement forcé depuis Google Sheets...');
+  
+  if (!currentUser) {
+    showToast('Erreur', 'Vous devez être connecté', 'error');
+    return;
+  }
+  
+  try {
+    showLoadingOverlay('Chargement depuis Google Sheets...');
+    
+    // Forcer le mode API
+    USE_GOOGLE_SHEETS_API = true;
+    
+    // Charger toutes les données
+    const results = await Promise.allSettled([
+      api.getEntreprises(),
+      api.getContacts(),
+      api.getOpportunites(),
+      api.getProduits(),
+      api.getPacks(),
+      api.getEmails(),
+      api.getRdv(),
+      api.getAppels(),
+      api.getTaches(),
+      currentUser?.role === 'admin' ? api.getUsers() : Promise.resolve({ success: true, data: [] })
+    ]);
+    
+    const [entreprisesRes, contactsRes, opportunitesRes, produitsRes, packsRes, 
+           emailsRes, rdvRes, appelsRes, tachesRes, usersRes] = results.map(r => 
+      r.status === 'fulfilled' ? r.value : { success: false, data: [] }
+    );
+    
+    // Log des résultats
+    console.log('📊 Résultats du chargement:');
+    console.log('  - Entreprises:', entreprisesRes.success ? entreprisesRes.data?.length || 0 : 'ERREUR');
+    console.log('  - Contacts:', contactsRes.success ? contactsRes.data?.length || 0 : 'ERREUR');
+    console.log('  - Opportunités:', opportunitesRes.success ? opportunitesRes.data?.length || 0 : 'ERREUR');
+    console.log('  - RDV:', rdvRes.success ? rdvRes.data?.length || 0 : 'ERREUR');
+    console.log('  - Appels:', appelsRes.success ? appelsRes.data?.length || 0 : 'ERREUR');
+    console.log('  - Tâches:', tachesRes.success ? tachesRes.data?.length || 0 : 'ERREUR');
+    
+    // Mettre à jour les données
+    if (entreprisesRes.success) data.entreprises = entreprisesRes.data || [];
+    if (contactsRes.success) data.contacts = contactsRes.data || [];
+    if (opportunitesRes.success) data.opportunites = opportunitesRes.data || [];
+    if (emailsRes.success) data.emails = emailsRes.data || [];
+    if (rdvRes.success) data.rdv = rdvRes.data || [];
+    if (appelsRes.success) data.appels = appelsRes.data || [];
+    if (tachesRes.success) data.taches = tachesRes.data || [];
+    if (usersRes.success && usersRes.data) data.users = usersRes.data;
+    
+    hideLoadingOverlay();
+    
+    // Rafraîchir l'affichage
+    if (typeof showPage === 'function') {
+      showPage(currentPage || 'dashboard');
+    }
+    
+    const totalItems = (data.entreprises?.length || 0) + (data.contacts?.length || 0) + 
+                       (data.opportunites?.length || 0) + (data.rdv?.length || 0);
+    
+    showToast('Chargé', `${totalItems} éléments chargés depuis Google Sheets`, 'success');
+    
+    return true;
+  } catch (error) {
+    hideLoadingOverlay();
+    console.error('❌ Erreur chargement:', error);
+    showToast('Erreur', 'Erreur de chargement: ' + error.message, 'error');
+    return false;
+  }
+};
+
+// Améliorer la fonction de login pour charger les données après connexion
+const originalDoLogin = window.doLogin;
+window.doLogin = async function(event) {
+  if (event) event.preventDefault();
+  
+  const username = document.getElementById('loginUsername')?.value?.trim();
+  const password = document.getElementById('loginPassword')?.value;
+  
+  if (!username || !password) {
+    showToast('Erreur', 'Identifiant et mot de passe requis', 'error');
+    return;
+  }
+  
+  try {
+    showLoadingOverlay('Connexion en cours...');
+    
+    // Tenter la connexion API
+    const result = await api.login(username, password);
+    
+    console.log('🔐 Résultat login:', result);
+    
+    if (result.success && result.data) {
+      currentUser = result.data.user || result.data;
+      api.token = result.data.token || result.token || '';
+      
+      localStorage.setItem(API_CONFIG.TOKEN_KEY, api.token);
+      localStorage.setItem(API_CONFIG.USER_KEY, JSON.stringify(currentUser));
+      
+      // Masquer le login
+      document.getElementById('loginContainer').style.display = 'none';
+      document.getElementById('appContainer').style.display = 'block';
+      
+      // Mettre à jour l'interface
+      updateUserInterface();
+      
+      // IMPORTANT: Charger les données depuis Google Sheets
+      console.log('📥 Chargement des données après connexion...');
+      await forceReloadFromGoogleSheets();
+      
+      hideLoadingOverlay();
+      showToast('Bienvenue', `Connecté en tant que ${currentUser.firstName || username}`, 'success');
+      
+    } else {
+      hideLoadingOverlay();
+      showToast('Erreur', result.message || 'Identifiants incorrects', 'error');
+    }
+  } catch (error) {
+    hideLoadingOverlay();
+    console.error('❌ Erreur login:', error);
+    showToast('Erreur', 'Erreur de connexion: ' + error.message, 'error');
+  }
+};
+
+// Ajouter un bouton de synchronisation dans le header
+window.addSyncButton = function() {
+  const headerRight = document.querySelector('.header-right') || document.querySelector('.header-actions');
+  
+  if (headerRight && !document.getElementById('syncBtn')) {
+    const syncBtn = document.createElement('button');
+    syncBtn.id = 'syncBtn';
+    syncBtn.className = 'btn btn-icon';
+    syncBtn.title = 'Synchroniser avec Google Sheets';
+    syncBtn.innerHTML = '🔄';
+    syncBtn.onclick = forceReloadFromGoogleSheets;
+    syncBtn.style.cssText = 'margin-right: 10px; font-size: 18px;';
+    headerRight.insertBefore(syncBtn, headerRight.firstChild);
+  }
+};
+
+// Modifier la fonction init pour s'assurer que les données sont chargées
+const originalInit = window.init;
+window.init = async function() {
+  console.log('🚀 Initialisation du CRM...');
+  
+  // Vérifier si un token existe
+  const savedToken = localStorage.getItem(API_CONFIG.TOKEN_KEY);
+  const savedUser = localStorage.getItem(API_CONFIG.USER_KEY);
+  
+  if (savedToken && savedUser) {
+    try {
+      currentUser = JSON.parse(savedUser);
+      api.token = savedToken;
+      
+      // Vérifier que le token est valide
+      const meResult = await api.getMe();
+      
+      if (meResult.success) {
+        console.log('✅ Session valide, chargement des données...');
+        
+        document.getElementById('loginContainer').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'block';
+        
+        updateUserInterface();
+        
+        // Charger les données depuis Google Sheets
+        await forceReloadFromGoogleSheets();
+        
+        // Ajouter le bouton de synchronisation
+        setTimeout(addSyncButton, 500);
+        
+        return;
+      }
+    } catch (e) {
+      console.warn('Session invalide:', e);
+    }
+  }
+  
+  // Afficher le formulaire de connexion
+  document.getElementById('loginContainer').style.display = 'flex';
+  document.getElementById('appContainer').style.display = 'none';
+};
+
+// S'exécuter au chargement
+setTimeout(() => {
+  addSyncButton();
+}, 1000);
+
+console.log('✅ Patch de chargement des données installé');
+console.log('   - Utilisez 🔄 pour synchroniser manuellement');
+console.log('   - Les données sont chargées automatiquement après connexion');
+
+
+
+// =====================================================
+// SYNCHRONISATION GOOGLE SHEETS
+// =====================================================
+
+async function syncFromGoogleSheets() {
+  if (!currentUser) {
+    showToast('Erreur', 'Vous devez être connecté', 'error');
+    return;
+  }
+  
+  console.log('🔄 Synchronisation depuis Google Sheets...');
+  showLoadingOverlay('Synchronisation en cours...');
+  
+  try {
+    // Forcer le mode API
+    USE_GOOGLE_SHEETS_API = true;
+    
+    const [entreprisesRes, contactsRes, opportunitesRes, produitsRes, packsRes, 
+           emailsRes, rdvRes, appelsRes, tachesRes, usersRes] = await Promise.all([
+      api.getEntreprises(),
+      api.getContacts(),
+      api.getOpportunites(),
+      api.getProduits(),
+      api.getPacks(),
+      api.getEmails(),
+      api.getRdv(),
+      api.getAppels(),
+      api.getTaches(),
+      currentUser?.role === 'admin' ? api.getUsers() : Promise.resolve({ success: true, data: [] })
+    ]);
+    
+    // Mettre à jour les données
+    if (entreprisesRes.success) data.entreprises = entreprisesRes.data || [];
+    if (contactsRes.success) data.contacts = contactsRes.data || [];
+    if (opportunitesRes.success) data.opportunites = opportunitesRes.data || [];
+    if (emailsRes.success) data.emails = emailsRes.data || [];
+    if (rdvRes.success) data.rdv = rdvRes.data || [];
+    if (appelsRes.success) data.appels = appelsRes.data || [];
+    if (tachesRes.success) data.taches = tachesRes.data || [];
+    if (usersRes.success && usersRes.data) data.users = usersRes.data;
+    
+    // Log
+    console.log('📊 Données synchronisées:');
+    console.log('  - Entreprises:', data.entreprises.length);
+    console.log('  - Contacts:', data.contacts.length);
+    console.log('  - Opportunités:', data.opportunites.length);
+    console.log('  - RDV:', data.rdv.length);
+    console.log('  - Appels:', data.appels.length);
+    console.log('  - Tâches:', data.taches.length);
+    
+    hideLoadingOverlay();
+    
+    // Rafraîchir la page actuelle
+    if (typeof showPage === 'function' && currentPage) {
+      showPage(currentPage);
+    }
+    
+    const total = (data.entreprises?.length || 0) + (data.contacts?.length || 0) + 
+                  (data.opportunites?.length || 0) + (data.rdv?.length || 0) +
+                  (data.appels?.length || 0) + (data.taches?.length || 0);
+    
+    showToast('Synchronisé', `${total} éléments chargés depuis Google Sheets`, 'success');
+    
+  } catch (error) {
+    hideLoadingOverlay();
+    console.error('❌ Erreur sync:', error);
+    showToast('Erreur', 'Erreur de synchronisation: ' + error.message, 'error');
+  }
+}
 
 </script>
 
