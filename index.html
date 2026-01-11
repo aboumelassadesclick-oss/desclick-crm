@@ -6118,6 +6118,9 @@ async function loadData() {
   try {
     showLoadingOverlay('Chargement des données...');
     
+    // Initialiser avec les données par défaut
+    data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+    
     // Charger toutes les données en parallèle
     const [entreprisesRes, contactsRes, opportunitesRes, produitsRes, packsRes, 
            emailsRes, rdvRes, appelsRes, tachesRes, usersRes] = await Promise.all([
@@ -6593,20 +6596,32 @@ function handleGlobalSearch(e) {
 // =====================================================
 
 function toggleTheme() {
+  if (!data) data = {};
+  if (!data.settings) data.settings = { darkMode: false };
   data.settings.darkMode = !data.settings.darkMode;
   applyTheme();
   saveData();
 }
 
 function applyTheme() {
+  // Vérifier que data.settings existe
+  if (!data || !data.settings) {
+    data = data || {};
+    data.settings = data.settings || { darkMode: false };
+  }
+  
   if (data.settings.darkMode) {
     document.documentElement.removeAttribute('data-theme');
-    document.getElementById('themeIcon').textContent = '🌙';
+    const themeIcon = document.getElementById('themeIcon');
+    if (themeIcon) themeIcon.textContent = '🌙';
   } else {
     document.documentElement.setAttribute('data-theme', 'light');
-    document.getElementById('themeIcon').textContent = '☀️';
+    const themeIcon = document.getElementById('themeIcon');
+    if (themeIcon) themeIcon.textContent = '☀️';
   }
-  document.getElementById('settingDarkMode').checked = data.settings.darkMode;
+  
+  const darkModeCheckbox = document.getElementById('settingDarkMode');
+  if (darkModeCheckbox) darkModeCheckbox.checked = data.settings.darkMode;
 }
 
 // =====================================================
