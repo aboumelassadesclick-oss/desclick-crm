@@ -38,13 +38,17 @@
     
     async request(action, data = {}, method = 'POST') {
       try {
+        // Google Apps Script : toujours utiliser GET pour éviter CORS preflight
         const params = new URLSearchParams();
         params.append('action', action);
         params.append('token', this.token);
         
-        if (method === 'GET') {
-          for (const [key, value] of Object.entries(data)) {
-            if (value !== undefined && value !== null) {
+        // Passer toutes les données en paramètres URL
+        for (const [key, value] of Object.entries(data)) {
+          if (value !== undefined && value !== null) {
+            if (typeof value === 'object') {
+              params.append(key, JSON.stringify(value));
+            } else {
               params.append(key, value);
             }
           }
@@ -53,20 +57,14 @@
         const url = `${this.baseUrl}?${params.toString()}`;
         
         if (API_CONFIG.DEBUG) {
-          console.log('🔗 API Request:', action, url);
+          console.log('🔗 API Request:', action, url.substring(0, 200) + '...');
         }
         
-        const options = { 
-          method, 
-          headers: { 'Content-Type': 'application/json' },
-          redirect: 'follow' // Important pour Google Apps Script
-        };
-        
-        if (method === 'POST' && Object.keys(data).length > 0) {
-          options.body = JSON.stringify(data);
-        }
-        
-        const response = await fetch(url, options);
+        // Utiliser GET simple sans headers personnalisés pour éviter CORS preflight
+        const response = await fetch(url, {
+          method: 'GET',
+          redirect: 'follow'
+        });
         
         if (API_CONFIG.DEBUG) {
           console.log('📡 Response status:', response.status, response.statusText);
@@ -6067,7 +6065,7 @@ async function testAPIConnection() {
     
     const response = await fetch(API_CONFIG.API_URL + '?action=getSettings', {
       method: 'GET',
-      mode: 'cors',
+      redirect: 'follow',
       signal: controller.signal
     });
     clearTimeout(timeoutId);
