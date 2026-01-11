@@ -24,7 +24,7 @@
   ===================================================== -->
   <script>
   const API_CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbzrIuBqT5kGspewx2USEEGAuMczlaRrmL-sTVRI0-yMNPQ3M1zj0S4htQD4VySYrxK15w/exec',
+    API_URL: 'https://script.google.com/macros/s/AKfycbzl5lv6TT-qYnfeT8AkGSwvuoDH0UqzX8zgbzDgT9R5anWUmikwj12w4cM_1Kc-9Grlrg/exec',
     TOKEN_KEY: 'desclick_crm_token',
     USER_KEY: 'desclick_crm_user',
     DEBUG: true // Activer le mode debug
@@ -43,13 +43,32 @@
         params.append('action', action);
         params.append('token', this.token);
         
-        // Passer toutes les données en paramètres URL
-        for (const [key, value] of Object.entries(data)) {
-          if (value !== undefined && value !== null) {
-            if (typeof value === 'object') {
-              params.append(key, JSON.stringify(value));
-            } else {
-              params.append(key, value);
+        // Pour les actions CRUD, envoyer les données dans un paramètre 'data'
+        const crudActions = ['createUser', 'updateUser', 'createEntreprise', 'updateEntreprise', 
+                            'createContact', 'updateContact', 'createOpportunite', 'updateOpportunite',
+                            'createProduit', 'updateProduit', 'createPack', 'updatePack',
+                            'createCommande', 'updateCommande', 'createEmail', 'createRdv', 'updateRdv',
+                            'createAppel', 'createTache', 'updateTache', 'sendMessage'];
+        
+        if (crudActions.includes(action)) {
+          // Extraire l'id s'il existe et l'envoyer séparément
+          const { id, ...restData } = data;
+          if (id !== undefined) {
+            params.append('id', id);
+          }
+          // Envoyer le reste des données comme JSON
+          if (Object.keys(restData).length > 0) {
+            params.append('data', JSON.stringify(restData));
+          }
+        } else {
+          // Pour les autres actions, envoyer les paramètres séparément
+          for (const [key, value] of Object.entries(data)) {
+            if (value !== undefined && value !== null) {
+              if (typeof value === 'object') {
+                params.append(key, JSON.stringify(value));
+              } else {
+                params.append(key, value);
+              }
             }
           }
         }
@@ -10196,7 +10215,8 @@ function renderEquipe() {
   document.getElementById('statTotalUsers').textContent = users.filter(u => u.isActive).length;
   
   const totalCA = users.reduce((sum, u) => {
-    const opps = data.opportunites.filter(o => o.ownerId === u.id && PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon);
+    const userId = String(u.id);
+    const opps = data.opportunites.filter(o => String(o.ownerId) === userId && PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon);
     return sum + opps.reduce((s, o) => s + (parseFloat(o.amount) || 0), 0);
   }, 0);
   document.getElementById('statTotalTeamCA').textContent = formatCurrency(totalCA);
@@ -10220,10 +10240,11 @@ function renderEquipe() {
   }
   
   container.innerHTML = users.map(u => {
-    const entreprises = data.entreprises.filter(e => e.ownerId === u.id).length;
-    const opportunites = data.opportunites.filter(o => o.ownerId === u.id).length;
+    const userId = String(u.id);
+    const entreprises = data.entreprises.filter(e => String(e.ownerId) === userId).length;
+    const opportunites = data.opportunites.filter(o => String(o.ownerId) === userId).length;
     const caGenere = data.opportunites
-      .filter(o => o.ownerId === u.id && PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon)
+      .filter(o => String(o.ownerId) === userId && PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon)
       .reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     
     // Afficher les types d'accès
@@ -10431,9 +10452,17 @@ async function saveUtilisateur(e) {
     accessTypes: JSON.stringify(accessTypes)
   };
   
+  // Pour une création, le mot de passe est obligatoire
+  if (!id && !form.password.value) {
+    showToast('Erreur', 'Le mot de passe est obligatoire', 'error');
+    return;
+  }
+  
   if (form.password.value) {
     userData.password = form.password.value;
   }
+  
+  console.log('📤 Envoi userData:', userData);
   
   if (USE_GOOGLE_SHEETS_API) {
     try {
@@ -10530,10 +10559,20 @@ function renderConsolidation() {
   const users = data.users.filter(u => u.role === 'commercial');
   const container = document.getElementById('consolidationTable');
   
+  if (users.length === 0) {
+    container.innerHTML = `
+      <tr>
+        <td colspan="7" class="text-center text-muted">Aucun commercial trouvé</td>
+      </tr>
+    `;
+    return;
+  }
+  
   container.innerHTML = users.map(u => {
-    const entreprises = data.entreprises.filter(e => e.ownerId === u.id).length;
-    const contacts = data.contacts.filter(c => c.ownerId === u.id).length;
-    const opps = data.opportunites.filter(o => o.ownerId === u.id);
+    const userId = String(u.id);
+    const entreprises = data.entreprises.filter(e => String(e.ownerId) === userId).length;
+    const contacts = data.contacts.filter(c => String(c.ownerId) === userId).length;
+    const opps = data.opportunites.filter(o => String(o.ownerId) === userId);
     const caPipeline = opps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     const wonOpps = opps.filter(o => PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon);
     const caGagne = wonOpps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
@@ -10565,9 +10604,10 @@ function exportConsolidation() {
   
   const headers = ['Commercial', 'Entreprises', 'Contacts', 'Opportunités', 'CA Pipeline', 'CA Gagné'];
   const rows = users.map(u => {
-    const entreprises = data.entreprises.filter(e => e.ownerId === u.id).length;
-    const contacts = data.contacts.filter(c => c.ownerId === u.id).length;
-    const opps = data.opportunites.filter(o => o.ownerId === u.id);
+    const userId = String(u.id);
+    const entreprises = data.entreprises.filter(e => String(e.ownerId) === userId).length;
+    const contacts = data.contacts.filter(c => String(c.ownerId) === userId).length;
+    const opps = data.opportunites.filter(o => String(o.ownerId) === userId);
     const caPipeline = opps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     const caGagne = opps.filter(o => PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon)
       .reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
@@ -10747,7 +10787,8 @@ function renderAdminPipelineByUser(allOpportunites) {
   const stageColumns = ['prospection', 'qualification', 'proposition', 'negociation', 'closing'];
   
   container.innerHTML = users.map(u => {
-    const userOpps = allOpportunites.filter(o => o.ownerId === u.id);
+    const userId = String(u.id);
+    const userOpps = allOpportunites.filter(o => String(o.ownerId) === userId);
     
     // Count and sum by stage
     const byStage = {};
@@ -12729,14 +12770,16 @@ function getUtilisateurForm(id) {
 
 function filterByOwner(items, ownerId) {
   if (!ownerId) return items;
-  return items.filter(i => i.ownerId === ownerId);
+  const ownerIdStr = String(ownerId);
+  return items.filter(i => String(i.ownerId) === ownerIdStr);
 }
 
 function getAccessibleEntreprises() {
   if (currentUser.role === 'admin') {
     return data.entreprises;
   }
-  return data.entreprises.filter(e => e.ownerId === currentUser.id);
+  const userId = String(currentUser.id);
+  return data.entreprises.filter(e => String(e.ownerId) === userId);
 }
 
 function logActivity(type, message) {
@@ -13258,19 +13301,18 @@ function updateEmailContacts() {
     filteredContacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName} - ${c.email}</option>`).join('');
 }
 
-function saveEmail(event) {
+async function saveEmail(event) {
   event.preventDefault();
   
-  const contactId = parseInt(document.getElementById('emailContact').value);
-  const contact = data.contacts.find(c => c.id === contactId);
+  const contactId = document.getElementById('emailContact').value;
+  const contact = data.contacts.find(c => String(c.id) === String(contactId));
   
   if (!contact) {
     showToast('Erreur', 'Veuillez sélectionner un contact', 'error');
     return;
   }
   
-  const email = {
-    id: (data.lastId.email || 0) + 1,
+  const emailData = {
     type: 'sortant',
     to: contact.email,
     from: currentUser.email,
@@ -13278,21 +13320,46 @@ function saveEmail(event) {
     body: document.getElementById('emailBody').value,
     entrepriseId: contact.entrepriseId,
     contactId: contactId,
-    opportuniteId: null,
     statut: document.getElementById('emailStatut').value,
-    dateEnvoi: document.getElementById('emailStatut').value === 'envoye' ? new Date().toISOString() : null,
-    ownerId: currentUser.id,
-    createdAt: new Date().toISOString()
+    dateEnvoi: document.getElementById('emailStatut').value === 'envoye' ? new Date().toISOString() : null
   };
   
-  data.lastId.email = email.id;
-  data.emails = data.emails || [];
-  data.emails.push(email);
-  saveData();
-  
-  closeMainModal();
-  renderEmails();
-  showToast('Succès', 'Email enregistré', 'success');
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      showLoadingOverlay('Enregistrement...');
+      const result = await api.createEmail(emailData);
+      hideLoadingOverlay();
+      
+      if (result.success) {
+        const emailsRes = await api.getEmails();
+        if (emailsRes.success) data.emails = emailsRes.data;
+        closeMainModal();
+        renderEmails();
+        showToast('Succès', 'Email enregistré', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      hideLoadingOverlay();
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    const email = {
+      id: (data.lastId.email || 0) + 1,
+      ...emailData,
+      ownerId: currentUser.id,
+      createdAt: new Date().toISOString()
+    };
+    
+    data.lastId.email = email.id;
+    data.emails = data.emails || [];
+    data.emails.push(email);
+    saveData();
+    
+    closeMainModal();
+    renderEmails();
+    showToast('Succès', 'Email enregistré', 'success');
+  }
 }
 
 function viewEmail(id) {
@@ -13334,12 +13401,28 @@ function sendEmail(id) {
   }
 }
 
-function deleteEmail(id) {
+async function deleteEmail(id) {
   if (!confirm('Supprimer cet email ?')) return;
-  data.emails = data.emails.filter(e => e.id !== id);
-  saveData();
-  renderEmails();
-  showToast('Supprimé', 'Email supprimé', 'success');
+  
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      const result = await api.deleteEmail(id);
+      if (result.success) {
+        data.emails = data.emails.filter(e => String(e.id) !== String(id));
+        renderEmails();
+        showToast('Supprimé', 'Email supprimé', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    data.emails = data.emails.filter(e => e.id !== id);
+    saveData();
+    renderEmails();
+    showToast('Supprimé', 'Email supprimé', 'success');
+  }
 }
 
 // =====================================================
@@ -13503,52 +13586,104 @@ function updateRdvContacts() {
     filteredContacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName}</option>`).join('');
 }
 
-function saveRdv(event) {
+async function saveRdv(event) {
   event.preventDefault();
   
-  const rdv = {
-    id: (data.lastId.rdv || 0) + 1,
-    entrepriseId: parseInt(document.getElementById('rdvEntreprise').value) || null,
-    contactId: parseInt(document.getElementById('rdvContact').value) || null,
+  const rdvData = {
+    entrepriseId: document.getElementById('rdvEntreprise').value || null,
+    contactId: document.getElementById('rdvContact').value || null,
     date: document.getElementById('rdvDate').value,
     heure: document.getElementById('rdvHeure').value,
     objet: document.getElementById('rdvObjet').value,
     lieu: document.getElementById('rdvLieu').value,
-    opportuniteId: parseInt(document.getElementById('rdvOpportunite').value) || null,
+    opportuniteId: document.getElementById('rdvOpportunite').value || null,
     notes: document.getElementById('rdvNotes').value,
-    statut: 'a_confirmer',
-    ownerId: currentUser.id,
-    createdAt: new Date().toISOString()
+    statut: 'a_confirmer'
   };
   
-  data.lastId.rdv = rdv.id;
-  data.rdv = data.rdv || [];
-  data.rdv.push(rdv);
-  saveData();
-  
-  closeMainModal();
-  renderRdv();
-  renderCalendrier();
-  showToast('Succès', 'Rendez-vous créé', 'success');
-}
-
-function confirmRdv(id) {
-  const rdv = data.rdv.find(r => r.id === id);
-  if (rdv) {
-    rdv.statut = 'confirme';
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      showLoadingOverlay('Enregistrement...');
+      const result = await api.createRdv(rdvData);
+      hideLoadingOverlay();
+      
+      if (result.success) {
+        const rdvRes = await api.getRdv();
+        if (rdvRes.success) data.rdv = rdvRes.data;
+        closeMainModal();
+        renderRdv();
+        renderCalendrier();
+        showToast('Succès', 'Rendez-vous créé', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      hideLoadingOverlay();
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    const rdv = {
+      id: (data.lastId.rdv || 0) + 1,
+      ...rdvData,
+      ownerId: currentUser.id,
+      createdAt: new Date().toISOString()
+    };
+    
+    data.lastId.rdv = rdv.id;
+    data.rdv = data.rdv || [];
+    data.rdv.push(rdv);
     saveData();
+    
+    closeMainModal();
     renderRdv();
-    showToast('Confirmé', 'Rendez-vous confirmé', 'success');
+    renderCalendrier();
+    showToast('Succès', 'Rendez-vous créé', 'success');
   }
 }
 
-function markRdvDone(id) {
-  const rdv = data.rdv.find(r => r.id === id);
+async function confirmRdv(id) {
+  const rdv = data.rdv.find(r => String(r.id) === String(id));
   if (rdv) {
-    rdv.statut = 'effectue';
-    saveData();
-    renderRdv();
-    showToast('Terminé', 'Rendez-vous marqué comme effectué', 'success');
+    if (USE_GOOGLE_SHEETS_API) {
+      try {
+        const result = await api.updateRdv(id, { statut: 'confirme' });
+        if (result.success) {
+          rdv.statut = 'confirme';
+          renderRdv();
+          showToast('Confirmé', 'Rendez-vous confirmé', 'success');
+        }
+      } catch (error) {
+        showToast('Erreur', error.message, 'error');
+      }
+    } else {
+      rdv.statut = 'confirme';
+      saveData();
+      renderRdv();
+      showToast('Confirmé', 'Rendez-vous confirmé', 'success');
+    }
+  }
+}
+
+async function markRdvDone(id) {
+  const rdv = data.rdv.find(r => String(r.id) === String(id));
+  if (rdv) {
+    if (USE_GOOGLE_SHEETS_API) {
+      try {
+        const result = await api.updateRdv(id, { statut: 'effectue' });
+        if (result.success) {
+          rdv.statut = 'effectue';
+          renderRdv();
+          showToast('Terminé', 'Rendez-vous marqué comme effectué', 'success');
+        }
+      } catch (error) {
+        showToast('Erreur', error.message, 'error');
+      }
+    } else {
+      rdv.statut = 'effectue';
+      saveData();
+      renderRdv();
+      showToast('Terminé', 'Rendez-vous marqué comme effectué', 'success');
+    }
   }
 }
 
@@ -13590,13 +13725,30 @@ function editRdv(id) {
   }, 100);
 }
 
-function deleteRdv(id) {
+async function deleteRdv(id) {
   if (!confirm('Supprimer ce rendez-vous ?')) return;
-  data.rdv = data.rdv.filter(r => r.id !== id);
-  saveData();
-  renderRdv();
-  renderCalendrier();
-  showToast('Supprimé', 'Rendez-vous supprimé', 'success');
+  
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      const result = await api.deleteRdv(id);
+      if (result.success) {
+        data.rdv = data.rdv.filter(r => String(r.id) !== String(id));
+        renderRdv();
+        renderCalendrier();
+        showToast('Supprimé', 'Rendez-vous supprimé', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    data.rdv = data.rdv.filter(r => r.id !== id);
+    saveData();
+    renderRdv();
+    renderCalendrier();
+    showToast('Supprimé', 'Rendez-vous supprimé', 'success');
+  }
 }
 
 // =====================================================
@@ -13778,53 +13930,105 @@ function updateAppelPhone() {
   }
 }
 
-function saveAppel(event) {
+async function saveAppel(event) {
   event.preventDefault();
   
-  const appel = {
-    id: (data.lastId.appel || 0) + 1,
-    entrepriseId: parseInt(document.getElementById('appelEntreprise').value) || null,
-    contactId: parseInt(document.getElementById('appelContactSelect').value) || null,
+  const appelData = {
+    entrepriseId: document.getElementById('appelEntreprise').value || null,
+    contactId: document.getElementById('appelContactSelect').value || null,
     contact: document.getElementById('appelContact').value,
     telephone: document.getElementById('appelTelephone').value,
     date: document.getElementById('appelDate').value,
     heure: document.getElementById('appelHeure').value,
     objet: document.getElementById('appelObjet').value,
-    duree: parseInt(document.getElementById('appelDuree').value) || null,
+    duree: document.getElementById('appelDuree').value || null,
     notes: document.getElementById('appelNotes').value,
-    statut: document.getElementById('appelStatut').value,
-    ownerId: currentUser.id,
-    createdAt: new Date().toISOString()
+    statut: document.getElementById('appelStatut').value
   };
   
-  data.lastId.appel = appel.id;
-  data.appels = data.appels || [];
-  data.appels.push(appel);
-  saveData();
-  
-  closeMainModal();
-  renderAppels();
-  renderCalendrier();
-  showToast('Succès', 'Appel enregistré', 'success');
-}
-
-function markAppelDone(id) {
-  const appel = data.appels.find(a => a.id === id);
-  if (appel) {
-    appel.statut = 'effectue';
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      showLoadingOverlay('Enregistrement...');
+      const result = await api.createAppel(appelData);
+      hideLoadingOverlay();
+      
+      if (result.success) {
+        const appelsRes = await api.getAppels();
+        if (appelsRes.success) data.appels = appelsRes.data;
+        closeMainModal();
+        renderAppels();
+        renderCalendrier();
+        showToast('Succès', 'Appel enregistré', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      hideLoadingOverlay();
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    const appel = {
+      id: (data.lastId.appel || 0) + 1,
+      ...appelData,
+      ownerId: currentUser.id,
+      createdAt: new Date().toISOString()
+    };
+    
+    data.lastId.appel = appel.id;
+    data.appels = data.appels || [];
+    data.appels.push(appel);
     saveData();
+    
+    closeMainModal();
     renderAppels();
-    showToast('Effectué', 'Appel marqué comme effectué', 'success');
+    renderCalendrier();
+    showToast('Succès', 'Appel enregistré', 'success');
   }
 }
 
-function markAppelToCallback(id) {
-  const appel = data.appels.find(a => a.id === id);
+async function markAppelDone(id) {
+  const appel = data.appels.find(a => String(a.id) === String(id));
   if (appel) {
-    appel.statut = 'a_rappeler';
-    saveData();
-    renderAppels();
-    showToast('À rappeler', 'Appel marqué à rappeler', 'info');
+    if (USE_GOOGLE_SHEETS_API) {
+      try {
+        const result = await api.updateAppel(id, { statut: 'effectue' });
+        if (result.success) {
+          appel.statut = 'effectue';
+          renderAppels();
+          showToast('Effectué', 'Appel marqué comme effectué', 'success');
+        }
+      } catch (error) {
+        showToast('Erreur', error.message, 'error');
+      }
+    } else {
+      appel.statut = 'effectue';
+      saveData();
+      renderAppels();
+      showToast('Effectué', 'Appel marqué comme effectué', 'success');
+    }
+  }
+}
+
+async function markAppelToCallback(id) {
+  const appel = data.appels.find(a => String(a.id) === String(id));
+  if (appel) {
+    if (USE_GOOGLE_SHEETS_API) {
+      try {
+        const result = await api.updateAppel(id, { statut: 'a_rappeler' });
+        if (result.success) {
+          appel.statut = 'a_rappeler';
+          renderAppels();
+          showToast('À rappeler', 'Appel marqué à rappeler', 'info');
+        }
+      } catch (error) {
+        showToast('Erreur', error.message, 'error');
+      }
+    } else {
+      appel.statut = 'a_rappeler';
+      saveData();
+      renderAppels();
+      showToast('À rappeler', 'Appel marqué à rappeler', 'info');
+    }
   }
 }
 
@@ -13865,13 +14069,30 @@ function editAppel(id) {
   }, 100);
 }
 
-function deleteAppel(id) {
+async function deleteAppel(id) {
   if (!confirm('Supprimer cet appel ?')) return;
-  data.appels = data.appels.filter(a => a.id !== id);
-  saveData();
-  renderAppels();
-  renderCalendrier();
-  showToast('Supprimé', 'Appel supprimé', 'success');
+  
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      const result = await api.deleteAppel(id);
+      if (result.success) {
+        data.appels = data.appels.filter(a => String(a.id) !== String(id));
+        renderAppels();
+        renderCalendrier();
+        showToast('Supprimé', 'Appel supprimé', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    data.appels = data.appels.filter(a => a.id !== id);
+    saveData();
+    renderAppels();
+    renderCalendrier();
+    showToast('Supprimé', 'Appel supprimé', 'success');
+  }
 }
 
 // =====================================================
@@ -14013,46 +14234,85 @@ function openNewTacheModal() {
   openMainModal();
 }
 
-function saveTache(event) {
+async function saveTache(event) {
   event.preventDefault();
   
-  const tache = {
-    id: (data.lastId.tache || 0) + 1,
+  const tacheData = {
     titre: document.getElementById('tacheTitre').value,
     description: document.getElementById('tacheDescription').value,
-    entrepriseId: parseInt(document.getElementById('tacheEntreprise').value) || null,
-    opportuniteId: parseInt(document.getElementById('tacheOpportunite').value) || null,
+    entrepriseId: document.getElementById('tacheEntreprise').value || null,
+    opportuniteId: document.getElementById('tacheOpportunite').value || null,
     echeance: document.getElementById('tacheEcheance').value || null,
     priorite: document.getElementById('tachePriorite').value,
-    statut: 'a_faire',
-    ownerId: currentUser.id,
-    createdAt: new Date().toISOString()
+    statut: 'a_faire'
   };
   
-  data.lastId.tache = tache.id;
-  data.taches = data.taches || [];
-  data.taches.push(tache);
-  saveData();
-  
-  closeMainModal();
-  renderTaches();
-  renderCalendrier();
-  showToast('Succès', 'Tâche créée', 'success');
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      showLoadingOverlay('Enregistrement...');
+      const result = await api.createTache(tacheData);
+      hideLoadingOverlay();
+      
+      if (result.success) {
+        const tachesRes = await api.getTaches();
+        if (tachesRes.success) data.taches = tachesRes.data;
+        closeMainModal();
+        renderTaches();
+        renderCalendrier();
+        showToast('Succès', 'Tâche créée', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      hideLoadingOverlay();
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    const tache = {
+      id: (data.lastId.tache || 0) + 1,
+      ...tacheData,
+      ownerId: currentUser.id,
+      createdAt: new Date().toISOString()
+    };
+    
+    data.lastId.tache = tache.id;
+    data.taches = data.taches || [];
+    data.taches.push(tache);
+    saveData();
+    
+    closeMainModal();
+    renderTaches();
+    renderCalendrier();
+    showToast('Succès', 'Tâche créée', 'success');
+  }
 }
 
-function toggleTache(id) {
-  const tache = data.taches.find(t => t.id === id);
+async function toggleTache(id) {
+  const tache = data.taches.find(t => String(t.id) === String(id));
   if (tache) {
-    if (tache.statut === 'terminee') {
-      tache.statut = 'a_faire';
+    const newStatut = tache.statut === 'terminee' ? 'a_faire' : 'terminee';
+    
+    if (USE_GOOGLE_SHEETS_API) {
+      try {
+        const result = await api.updateTache(id, { statut: newStatut });
+        if (result.success) {
+          tache.statut = newStatut;
+          renderTaches();
+          showToast(newStatut === 'terminee' ? 'Terminée' : 'Réouverte', 
+                    newStatut === 'terminee' ? 'Tâche terminée !' : 'Tâche réouverte', 
+                    newStatut === 'terminee' ? 'success' : 'info');
+        }
+      } catch (error) {
+        showToast('Erreur', error.message, 'error');
+      }
     } else {
-      tache.statut = 'terminee';
+      tache.statut = newStatut;
+      saveData();
+      renderTaches();
+      showToast(newStatut === 'terminee' ? 'Terminée' : 'Réouverte', 
+                newStatut === 'terminee' ? 'Tâche terminée !' : 'Tâche réouverte', 
+                newStatut === 'terminee' ? 'success' : 'info');
     }
-    saveData();
-    renderTaches();
-    showToast(tache.statut === 'terminee' ? 'Terminée' : 'Réouverte', 
-              tache.statut === 'terminee' ? 'Tâche terminée !' : 'Tâche réouverte', 
-              tache.statut === 'terminee' ? 'success' : 'info');
   }
 }
 
@@ -14087,13 +14347,30 @@ function editTache(id) {
   }, 100);
 }
 
-function deleteTache(id) {
+async function deleteTache(id) {
   if (!confirm('Supprimer cette tâche ?')) return;
-  data.taches = data.taches.filter(t => t.id !== id);
-  saveData();
-  renderTaches();
-  renderCalendrier();
-  showToast('Supprimée', 'Tâche supprimée', 'success');
+  
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      const result = await api.deleteTache(id);
+      if (result.success) {
+        data.taches = data.taches.filter(t => String(t.id) !== String(id));
+        renderTaches();
+        renderCalendrier();
+        showToast('Supprimée', 'Tâche supprimée', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    data.taches = data.taches.filter(t => t.id !== id);
+    saveData();
+    renderTaches();
+    renderCalendrier();
+    showToast('Supprimée', 'Tâche supprimée', 'success');
+  }
 }
 
 // =====================================================
