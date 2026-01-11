@@ -6852,7 +6852,7 @@ function renderEntreprises() {
   }
   
   container.innerHTML = entreprises.map(e => {
-    const owner = data.users.find(u => u.id === e.ownerId);
+    const owner = data.users.find(u => String(u.id) === String(e.ownerId));
     return `
       <tr>
         <td>
@@ -7094,7 +7094,7 @@ async function saveEntrepriseWithContact(e) {
         entrepriseId: entreprise.id,
         function: contactData.functionTitle,
         ownerId: currentUser.id,
-        createdAt: contactId ? data.contacts.find(c => c.id === parseInt(contactId))?.createdAt : new Date().toISOString(),
+        createdAt: contactId ? data.contacts.find(c => String(c.id) === String(parseInt(contactId)))?.createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       
@@ -7150,7 +7150,7 @@ function deleteEntreprise(id) {
       }
     })();
   } else {
-    const entreprise = data.entreprises.find(e => e.id === id);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(id));
     data.entreprises = data.entreprises.filter(e => e.id !== id);
     // Also delete related contacts and opportunities
     data.contacts = data.contacts.filter(c => c.entrepriseId !== id);
@@ -7167,6 +7167,53 @@ function viewEntreprise(id) {
   // Open detailed view modal or navigate to detail page
   openModal('entreprise', id);
 }
+// =====================================================
+// FONCTIONS VIEW POUR TOUS LES MODULES
+// =====================================================
+
+function viewContact(id) {
+  openModal('contact', id);
+}
+
+function viewRdv(id) {
+  openModal('rdv', id);
+}
+
+function viewAppel(id) {
+  openModal('appel', id);
+}
+
+function viewTache(id) {
+  openModal('tache', id);
+}
+
+function viewOpportunite(id) {
+  openModal('opportunite', id);
+}
+
+function viewProduit(id) {
+  const produit = data.produits?.find(p => String(p.id) === String(id)) || 
+                  PRODUCT_CATALOGUE?.find(p => String(p.id) === String(id));
+  if (produit) {
+    showToast('Produit', `${produit.name || produit.ref} - ${formatCurrency(produit.price)}`, 'info');
+  }
+}
+
+function viewPack(id) {
+  const pack = data.packs?.find(p => String(p.id) === String(id)) ||
+               PACKS_CATALOGUE?.find(p => String(p.id) === String(id));
+  if (pack) {
+    showToast('Pack', `${pack.name || pack.ref} - ${formatCurrency(pack.price)}`, 'info');
+  }
+}
+
+function viewCommande(id) {
+  const commande = data.orders?.find(c => String(c.id) === String(id));
+  if (commande) {
+    showToast('Commande', `${commande.orderNumber || 'BC'} - ${formatCurrency(commande.totalTTC)}`, 'info');
+  }
+}
+
 
 // =====================================================
 // CONTACTS
@@ -7221,8 +7268,8 @@ function renderContacts() {
   }
   
   container.innerHTML = contacts.map(c => {
-    const entreprise = data.entreprises.find(e => e.id === c.entrepriseId);
-    const contactType = CONTACT_TYPES.find(t => t.id === c.contactType);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(c.entrepriseId));
+    const contactType = CONTACT_TYPES.find(t => String(t.id) === String(c.contactType));
     return `
       <tr>
         <td><code class="font-mono">${entreprise?.id || '-'}</code></td>
@@ -7297,7 +7344,7 @@ function saveContact(e) {
       ...contactData,
       function: contactData.functionTitle,
       ownerId: currentUser.id,
-      createdAt: id ? data.contacts.find(c => c.id === parseInt(id))?.createdAt : new Date().toISOString(),
+      createdAt: id ? data.contacts.find(c => String(c.id) === String(parseInt(id)))?.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     
@@ -7342,7 +7389,7 @@ function deleteContact(id) {
       }
     })();
   } else {
-    const contact = data.contacts.find(c => c.id === id);
+    const contact = data.contacts.find(c => String(c.id) === String(id));
     data.contacts = data.contacts.filter(c => c.id !== id);
     logActivity('delete', `Contact supprimé: ${contact?.firstName} ${contact?.lastName}`);
     saveData();
@@ -7405,11 +7452,11 @@ function renderOpportunites() {
   }
   
   container.innerHTML = opportunites.map(o => {
-    const entreprise = data.entreprises.find(e => e.id === o.entrepriseId);
-    const contact = data.contacts.find(c => c.id === o.contactId);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(o.entrepriseId));
+    const contact = data.contacts.find(c => String(c.id) === String(o.contactId));
     const stage = PIPELINE_STAGES.find(s => s.id === o.stage);
     const state = OPP_STATES.find(s => s.id === o.state);
-    const priority = OPP_PRIORITIES.find(p => p.id === o.priority);
+    const priority = OPP_PRIORITIES.find(p => String(p.id) === String(o.priority));
     const source = OPP_SOURCES.find(s => s.id === o.source);
     
     return `
@@ -7507,7 +7554,7 @@ async function saveOpportunite(e) {
       motifEchec: form.motifEchec?.value || 'aucun',
       avancement: form.avancement?.value.trim() || '',
       ownerId: currentUser.id,
-      createdAt: id ? data.opportunites.find(o => o.id === parseInt(id))?.createdAt : new Date().toISOString(),
+      createdAt: id ? data.opportunites.find(o => String(o.id) === String(parseInt(id)))?.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     
@@ -7554,7 +7601,7 @@ function deleteOpportunite(id) {
       }
     })();
   } else {
-    const opp = data.opportunites.find(o => o.id === id);
+    const opp = data.opportunites.find(o => String(o.id) === String(id));
     data.opportunites = data.opportunites.filter(o => o.id !== id);
     logActivity('delete', `Opportunité supprimée: ${opp?.name}`);
     saveData();
@@ -7596,7 +7643,7 @@ function renderPipeline() {
 }
 
 function renderPipelineCard(opp, stage) {
-  const entreprise = data.entreprises.find(e => e.id === opp.entrepriseId);
+  const entreprise = data.entreprises.find(e => String(e.id) === String(opp.entrepriseId));
   return `
     <div class="pipeline-card" draggable="true" 
          ondragstart="handleDragStart(event, '${opp.id}')"
@@ -7643,7 +7690,7 @@ function handleDrop(e, stageId) {
   e.currentTarget.classList.remove('drag-over');
   
   if (draggedOppId) {
-    const opp = data.opportunites.find(o => o.id === draggedOppId || o.id === String(draggedOppId));
+    const opp = data.opportunites.find(o => String(o.id) === String(draggedOppId));
     if (opp) {
       const stage = PIPELINE_STAGES.find(s => s.id === stageId);
       
@@ -8326,7 +8373,7 @@ async function saveProduit(e) {
         id: id ? parseInt(id) : ++data.lastId.produit,
         reference: produit.ref,
         ...produit,
-        createdAt: id ? data.produits.find(p => p.id === parseInt(id))?.createdAt : new Date().toISOString(),
+        createdAt: id ? data.produits.find(p => String(p.id) === String(parseInt(id)))?.createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       
@@ -8436,7 +8483,7 @@ function fillBCClient() {
   const clientId = parseInt(document.getElementById('bcClient').value);
   if (!clientId) return;
   
-  const entreprise = data.entreprises.find(e => e.id === clientId);
+  const entreprise = data.entreprises.find(e => String(e.id) === String(clientId));
   if (entreprise) {
     document.getElementById('bcAddress').value = entreprise.address || '';
     document.getElementById('bcCity').value = entreprise.city || '';
@@ -8758,7 +8805,7 @@ function collectBCFormData() {
     return null;
   }
   
-  const entreprise = data.entreprises.find(e => e.id === clientId);
+  const entreprise = data.entreprises.find(e => String(e.id) === String(clientId));
   const products = [];
   const rows = document.querySelectorAll('.bc-product-row');
   
@@ -9636,7 +9683,7 @@ function resetBCForm() {
 function openBCHistory() {
   let orders = data.orders || [];
   if (currentUser.role !== 'admin') {
-    orders = orders.filter(o => o.ownerId === currentUser.id);
+    orders = orders.filter(o => String(o.ownerId) === String(currentUser.id));
   }
   
   const content = document.getElementById('bcHistoryContent');
@@ -9769,7 +9816,7 @@ function getConversationMessages(userId1, userId2) {
 
 function openChat(userId) {
   currentChat = userId;
-  const user = data.users.find(u => u.id === userId);
+  const user = data.users.find(u => String(u.id) === String(userId));
   
   // Update header
   document.getElementById('chatHeaderInfo').innerHTML = `
@@ -9908,7 +9955,7 @@ function renderAlertes() {
   
   container.innerHTML = alertes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(a => {
     const isRead = isAlertRead(a);
-    const sender = data.users.find(u => u.id === a.senderId) || { firstName: 'Système', lastName: '' };
+    const sender = data.users.find(u => String(u.id) === String(a.senderId)) || { firstName: 'Système', lastName: '' };
     
     return '<div class="alert-card priority-' + a.priority + ' ' + (isRead ? '' : 'unread') + ' ' + (selectedAlertId === a.id ? 'selected' : '') + '" onclick="selectAlert(' + a.id + ')">' +
       '<div class="alert-card-header">' +
@@ -9958,7 +10005,7 @@ function selectAlert(id) {
 }
 
 function showAlertDetail(id) {
-  const alert = (data.alertes || []).find(a => a.id === id);
+  const alert = (data.alertes || []).find(a => String(a.id) === String(id));
   if (!alert) return;
   
   // Marquer comme lue
@@ -10033,7 +10080,7 @@ function renderAlertThread(alert) {
   }
   
   container.innerHTML = messages.map(m => {
-    const author = data.users.find(u => u.id === m.authorId) || { firstName: 'Inconnu', lastName: '' };
+    const author = data.users.find(u => String(u.id) === String(m.authorId)) || { firstName: 'Inconnu', lastName: '' };
     const isOwn = m.authorId === currentUser.id;
     
     return '<div class="thread-message ' + (isOwn ? 'own' : '') + '">' +
@@ -10071,7 +10118,7 @@ function sendAlertReply() {
   const content = input.value.trim();
   if (!content) return;
   
-  const alert = (data.alertes || []).find(a => a.id === selectedAlertId);
+  const alert = (data.alertes || []).find(a => String(a.id) === String(selectedAlertId));
   if (!alert) return;
   
   if (!alert.messages) alert.messages = [];
@@ -10095,7 +10142,7 @@ function sendAlertReply() {
 
 function acknowledgeAlert() {
   if (!selectedAlertId) return;
-  const alert = (data.alertes || []).find(a => a.id === selectedAlertId);
+  const alert = (data.alertes || []).find(a => String(a.id) === String(selectedAlertId));
   if (!alert) return;
   
   alert.status = 'acknowledged';
@@ -10112,7 +10159,7 @@ function acknowledgeAlert() {
 
 function setAlertInProgress() {
   if (!selectedAlertId) return;
-  const alert = (data.alertes || []).find(a => a.id === selectedAlertId);
+  const alert = (data.alertes || []).find(a => String(a.id) === String(selectedAlertId));
   if (!alert) return;
   
   alert.status = 'in_progress';
@@ -10126,7 +10173,7 @@ function setAlertInProgress() {
 
 function resolveAlert() {
   if (!selectedAlertId) return;
-  const alert = (data.alertes || []).find(a => a.id === selectedAlertId);
+  const alert = (data.alertes || []).find(a => String(a.id) === String(selectedAlertId));
   if (!alert) return;
   
   alert.status = 'resolved';
@@ -10143,7 +10190,7 @@ function resolveAlert() {
 
 function escalateAlert() {
   if (!selectedAlertId) return;
-  const alert = (data.alertes || []).find(a => a.id === selectedAlertId);
+  const alert = (data.alertes || []).find(a => String(a.id) === String(selectedAlertId));
   if (!alert) return;
   
   alert.priority = 'critical';
@@ -10246,7 +10293,7 @@ function truncateText(text, maxLength) {
 
 function navigateToContext(type, id) {
   if (type === 'client') {
-    const ent = data.entreprises.find(e => e.id === id);
+    const ent = data.entreprises.find(e => String(e.id) === String(id));
     if (ent) openModal('entreprise', id);
   } else if (type === 'opportunite') {
     showPage('pipeline');
@@ -10259,7 +10306,7 @@ function isAlertRead(alert) {
 }
 
 function markAlertRead(id) {
-  const alert = (data.alertes || []).find(a => a.id === id);
+  const alert = (data.alertes || []).find(a => String(a.id) === String(id));
   if (alert) {
     if (!alert.readBy) alert.readBy = [];
     if (!alert.readBy.includes(currentUser.id)) {
@@ -10543,7 +10590,7 @@ function renderEquipe() {
 }
 
 function openAccessModal(userId) {
-  const user = data.users.find(u => u.id === userId);
+  const user = data.users.find(u => String(u.id) === String(userId));
   if (!user) return;
   
   let accessTypes = user.accessTypes || [1];
@@ -10613,7 +10660,7 @@ function closeAccessModal() {
 }
 
 async function saveUserAccess(userId) {
-  const user = data.users.find(u => u.id === userId);
+  const user = data.users.find(u => String(u.id) === String(userId));
   if (!user) return;
   
   const accessTypes = [];
@@ -10748,7 +10795,7 @@ async function saveUtilisateur(e) {
   } else {
     // Mode localStorage
     if (id) {
-      const user = data.users.find(u => u.id === id);
+      const user = data.users.find(u => String(u.id) === String(id));
       if (user) {
         Object.assign(user, userData);
         user.accessTypes = accessTypes;
@@ -10772,7 +10819,7 @@ async function saveUtilisateur(e) {
 }
 
 async function toggleUserStatus(id) {
-  const user = data.users.find(u => u.id === id);
+  const user = data.users.find(u => String(u.id) === String(id));
   if (user && user.role !== 'admin') {
     const newStatus = !user.isActive;
     
@@ -10967,7 +11014,8 @@ function renderAdminPipelineKanban(opportunites) {
     const total = stageOpps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     
     return `
-      <div class="pipeline-column" data-stage="${stage.id}">
+      <div class="pipeline-column" data-stage="${stage.id}"
+           ondragover="handleDragOver(event)" ondrop="handleDrop(event, '${stage.id}')">
         <div class="pipeline-header">
           <div class="pipeline-title">
             <div class="pipeline-color" style="background: ${stage.color};"></div>
@@ -11012,12 +11060,16 @@ function getCommercialColor(userId) {
 }
 
 function renderAdminPipelineCard(opp, stage) {
-  const entreprise = data.entreprises.find(e => e.id === opp.entrepriseId);
-  const owner = data.users.find(u => u.id === opp.ownerId);
+  const entreprise = data.entreprises.find(e => String(e.id) === String(opp.entrepriseId));
+  const owner = data.users.find(u => String(u.id) === String(opp.ownerId));
   const colors = getCommercialColor(opp.ownerId);
   
   return `
-    <div class="pipeline-card" onclick="viewOpportuniteDetail(${opp.id})" style="background: ${colors.bg}; border-left: 4px solid ${colors.border};">
+    <div class="pipeline-card" draggable="true"
+         ondragstart="handleDragStart(event, '${opp.id}')"
+         ondragend="handleDragEnd(event)"
+         onclick="openModal('opportunite', '${opp.id}')" 
+         style="background: ${colors.bg}; border-left: 4px solid ${colors.border}; cursor: grab;">
       <div class="pipeline-card-header">
         <div class="pipeline-card-title" style="color: ${colors.text};">${opp.name}</div>
       </div>
@@ -11130,11 +11182,11 @@ function renderAdminPipelineByUser(allOpportunites) {
 }
 
 function viewOpportuniteDetail(oppId) {
-  const opp = data.opportunites.find(o => o.id === oppId);
+  const opp = data.opportunites.find(o => String(o.id) === String(oppId));
   if (!opp) return;
   
-  const entreprise = data.entreprises.find(e => e.id === opp.entrepriseId);
-  const owner = data.users.find(u => u.id === opp.ownerId);
+  const entreprise = data.entreprises.find(e => String(e.id) === String(opp.entrepriseId));
+  const owner = data.users.find(u => String(u.id) === String(opp.ownerId));
   const stage = PIPELINE_STAGES.find(s => s.id === opp.stage);
   
   const content = `
@@ -11205,8 +11257,8 @@ function viewOpportuniteDetail(oppId) {
 function exportAdminPipeline() {
   const headers = ['Opportunité', 'Entreprise', 'Étape', 'Montant', 'Probabilité', 'Date clôture', 'Commercial'];
   const rows = data.opportunites.map(o => {
-    const entreprise = data.entreprises.find(e => e.id === o.entrepriseId);
-    const owner = data.users.find(u => u.id === o.ownerId);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(o.entrepriseId));
+    const owner = data.users.find(u => String(u.id) === String(o.ownerId));
     const stage = PIPELINE_STAGES.find(s => s.id === o.stage);
     return [o.name, entreprise?.name, stage?.name, o.amount, o.probability + '%', o.expectedClose || '', `${owner?.firstName || ''} ${owner?.lastName || ''}`];
   });
@@ -11227,7 +11279,7 @@ function renderCommandes() {
   
   // Filter by role
   if (currentUser.role !== 'admin') {
-    orders = orders.filter(o => o.ownerId === currentUser.id);
+    orders = orders.filter(o => String(o.ownerId) === String(currentUser.id));
   }
   
   // Apply filters
@@ -11236,7 +11288,7 @@ function renderCommandes() {
   const dateTo = document.getElementById('filterCommandeDateTo')?.value;
   
   if (commercialFilter) {
-    orders = orders.filter(o => o.ownerId === parseInt(commercialFilter));
+    orders = orders.filter(o => String(o.ownerId) === String(commercialFilter));
   }
   if (dateFrom) {
     orders = orders.filter(o => o.orderDate >= dateFrom);
@@ -11271,7 +11323,9 @@ function renderCommandes() {
       <td class="font-mono" style="color: var(--success); font-weight: 600;">${formatCurrency(o.totalTTC)}</td>
       <td>${o.ownerName || '-'}</td>
       <td class="actions-cell">
-        <button class="btn btn-icon sm" onclick="viewOrderDetails(${o.id})" title="Voir détails">👁️</button>
+        <button class="btn btn-icon sm" onclick="viewOrderDetails('${o.id}')" title="Voir détails">👁️</button>
+        <button class="btn btn-icon sm" onclick="editCommande('${o.id}')" title="Modifier">✏️</button>
+        <button class="btn btn-icon sm btn-danger" onclick="deleteCommande('${o.id}')" title="Supprimer">🗑️</button>
       </td>
     </tr>
   `).join('');
@@ -11280,7 +11334,7 @@ function renderCommandes() {
 function exportCommandesCSV() {
   let orders = data.orders || [];
   if (currentUser.role !== 'admin') {
-    orders = orders.filter(o => o.ownerId === currentUser.id);
+    orders = orders.filter(o => String(o.ownerId) === String(currentUser.id));
   }
   
   const headers = ['N° Commande', 'Date', 'Client', 'Total HT', 'TVA', 'Total TTC', 'Commercial'];
@@ -11290,8 +11344,38 @@ function exportCommandesCSV() {
   showToast('Exporté', 'Fichier téléchargé', 'success');
 }
 
+// Fonctions pour les commandes
+function editCommande(id) {
+  showToast('Commande', 'La modification des commandes sera disponible prochainement', 'info');
+}
+
+async function deleteCommande(id) {
+  if (!confirm('Supprimer cette commande ?')) return;
+  
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      const result = await api.deleteCommande(id);
+      if (result.success) {
+        data.orders = (data.orders || []).filter(o => String(o.id) !== String(id));
+        renderCommandes();
+        showToast('Supprimé', 'Commande supprimée', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur lors de la suppression', 'error');
+      }
+    } catch (e) {
+      showToast('Erreur', e.message, 'error');
+    }
+  } else {
+    data.orders = (data.orders || []).filter(o => String(o.id) !== String(id));
+    saveData();
+    renderCommandes();
+    showToast('Supprimé', 'Commande supprimée', 'success');
+  }
+}
+
+
 function viewOrderDetails(orderId) {
-  const order = data.orders.find(o => o.id === orderId);
+  const order = data.orders.find(o => String(o.id) === String(orderId));
   if (!order) return;
   
   const content = `
@@ -11346,7 +11430,7 @@ function viewOrderDetails(orderId) {
 
 // Download PDF for existing order
 function downloadOrderPDF(orderId) {
-  const order = data.orders.find(o => o.id === orderId);
+  const order = data.orders.find(o => String(o.id) === String(orderId));
   if (!order) {
     showToast('Erreur', 'Commande non trouvée', 'error');
     return;
@@ -11398,7 +11482,7 @@ function renderAdminEntreprises() {
   }
   
   container.innerHTML = entreprises.map(e => {
-    const owner = data.users.find(u => u.id === e.ownerId);
+    const owner = data.users.find(u => String(u.id) === String(e.ownerId));
     const contacts = data.contacts.filter(c => c.entrepriseId === e.id).length;
     const opps = data.opportunites.filter(o => o.entrepriseId === e.id);
     const ca = opps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
@@ -11421,7 +11505,7 @@ function renderAdminEntreprises() {
 function exportAdminEntreprises() {
   const headers = ['Entreprise', 'Type', 'Secteur', 'Ville', 'Commercial', 'Contacts', 'Opportunités', 'CA'];
   const rows = data.entreprises.map(e => {
-    const owner = data.users.find(u => u.id === e.ownerId);
+    const owner = data.users.find(u => String(u.id) === String(e.ownerId));
     const contacts = data.contacts.filter(c => c.entrepriseId === e.id).length;
     const opps = data.opportunites.filter(o => o.entrepriseId === e.id);
     const ca = opps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
@@ -11473,9 +11557,9 @@ function renderAdminContacts() {
   }
   
   container.innerHTML = contacts.map(c => {
-    const entreprise = data.entreprises.find(e => e.id === c.entrepriseId);
-    const owner = data.users.find(u => u.id === c.ownerId);
-    const contactType = CONTACT_TYPES.find(t => t.id === c.contactType);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(c.entrepriseId));
+    const owner = data.users.find(u => String(u.id) === String(c.ownerId));
+    const contactType = CONTACT_TYPES.find(t => String(t.id) === String(c.contactType));
     
     return `
       <tr>
@@ -11497,9 +11581,9 @@ function renderAdminContacts() {
 function exportAdminContacts() {
   const headers = ['ID Entreprise', 'Entreprise', 'ID Contact', 'Nom', 'Prénom', 'E-mail', 'N° Mobile', 'Fonction', 'Type', 'Commercial'];
   const rows = data.contacts.map(c => {
-    const entreprise = data.entreprises.find(e => e.id === c.entrepriseId);
-    const owner = data.users.find(u => u.id === c.ownerId);
-    const contactType = CONTACT_TYPES.find(t => t.id === c.contactType);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(c.entrepriseId));
+    const owner = data.users.find(u => String(u.id) === String(c.ownerId));
+    const contactType = CONTACT_TYPES.find(t => String(t.id) === String(c.contactType));
     return [entreprise?.id, entreprise?.name, c.id, c.lastName, c.firstName, c.email, c.mobile || c.phone, c.function, contactType?.name, `${owner?.firstName || ''} ${owner?.lastName || ''}`];
   });
   const csv = [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
@@ -11564,12 +11648,12 @@ function renderAdminOpportunites() {
   }
   
   container.innerHTML = opportunites.map(o => {
-    const entreprise = data.entreprises.find(e => e.id === o.entrepriseId);
-    const contact = data.contacts.find(c => c.id === o.contactId);
-    const owner = data.users.find(u => u.id === o.ownerId);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(o.entrepriseId));
+    const contact = data.contacts.find(c => String(c.id) === String(o.contactId));
+    const owner = data.users.find(u => String(u.id) === String(o.ownerId));
     const stage = PIPELINE_STAGES.find(s => s.id === o.stage);
     const state = OPP_STATES.find(s => s.id === o.state);
-    const priority = OPP_PRIORITIES.find(p => p.id === o.priority);
+    const priority = OPP_PRIORITIES.find(p => String(p.id) === String(o.priority));
     const source = OPP_SOURCES.find(s => s.id === o.source);
     const motif = OPP_MOTIFS_ECHEC.find(m => m.id === o.motifEchec);
     
@@ -11609,12 +11693,12 @@ function renderAdminOpportunites() {
 function exportAdminOpportunites() {
   const headers = ['ID Opportunité', 'Nom opportunité', 'Description', 'ID Entreprise', 'Entreprise', 'Ville', 'Interlocuteur', 'N° Mobile', 'Étape', 'Montant', 'Date création', 'Date clôture', '% Réussite', 'État', 'Motif échec', 'Priorité', 'Source', 'Avancement', 'Commercial'];
   const rows = data.opportunites.map(o => {
-    const entreprise = data.entreprises.find(e => e.id === o.entrepriseId);
-    const contact = data.contacts.find(c => c.id === o.contactId);
-    const owner = data.users.find(u => u.id === o.ownerId);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(o.entrepriseId));
+    const contact = data.contacts.find(c => String(c.id) === String(o.contactId));
+    const owner = data.users.find(u => String(u.id) === String(o.ownerId));
     const stage = PIPELINE_STAGES.find(s => s.id === o.stage);
     const state = OPP_STATES.find(s => s.id === o.state);
-    const priority = OPP_PRIORITIES.find(p => p.id === o.priority);
+    const priority = OPP_PRIORITIES.find(p => String(p.id) === String(o.priority));
     const source = OPP_SOURCES.find(s => s.id === o.source);
     const motif = OPP_MOTIFS_ECHEC.find(m => m.id === o.motifEchec);
     return [
@@ -11665,7 +11749,7 @@ function renderAdminCommandes() {
   
   // Filters
   if (commercialFilter) {
-    orders = orders.filter(o => o.ownerId === parseInt(commercialFilter));
+    orders = orders.filter(o => String(o.ownerId) === String(commercialFilter));
   }
   if (dateFrom) {
     orders = orders.filter(o => o.orderDate >= dateFrom);
@@ -12904,7 +12988,7 @@ function getPackEditForm(id, isCatalogue) {
   if (isCatalogue) {
     pack = PACKS_CATALOGUE[id] || {};
   } else {
-    pack = data.packs?.find(p => p.id === id) || {};
+    pack = data.packs?.find(p => String(p.id) === String(id)) || {};
   }
   
   return `
@@ -12966,7 +13050,7 @@ function initPackEditForm(id, isCatalogue) {
   if (isCatalogue) {
     pack = PACKS_CATALOGUE[id] || {};
   } else {
-    pack = data.packs?.find(p => p.id === id) || {};
+    pack = data.packs?.find(p => String(p.id) === String(id)) || {};
   }
   
   // Add existing items
@@ -13438,9 +13522,9 @@ function renderCalendrier() {
   
   // Get all events for this month
   const userId = currentUser?.id;
-  const myRdv = (data.rdv || []).filter(r => currentUser?.role === 'admin' || r.ownerId === userId);
-  const myAppels = (data.appels || []).filter(a => currentUser?.role === 'admin' || a.ownerId === userId);
-  const myTaches = (data.taches || []).filter(t => currentUser?.role === 'admin' || t.ownerId === userId);
+  const myRdv = (data.rdv || []).filter(r => currentUser?.role === 'admin' || String(r.ownerId) === String(userId));
+  const myAppels = (data.appels || []).filter(a => currentUser?.role === 'admin' || String(a.ownerId) === String(userId));
+  const myTaches = (data.taches || []).filter(t => currentUser?.role === 'admin' || String(t.ownerId) === String(userId));
   const myEmails = (data.emails || []).filter(e => currentUser?.role === 'admin' || e.ownerId === userId);
   
   // Previous month days
@@ -13459,7 +13543,7 @@ function renderCalendrier() {
     const dayEvents = [];
     
     myRdv.filter(r => r.date === dateStr).forEach(r => {
-      const entreprise = data.entreprises.find(e => e.id === r.entrepriseId);
+      const entreprise = data.entreprises.find(e => String(e.id) === String(r.entrepriseId));
       dayEvents.push({ type: 'rdv', icon: '🤝', title: r.objet, meta: entreprise?.name || '', time: r.heure });
     });
     
@@ -13535,7 +13619,7 @@ function renderTodayActions() {
   const events = [];
   
   todayRdv.forEach(r => {
-    const entreprise = data.entreprises.find(e => e.id === r.entrepriseId);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(r.entrepriseId));
     events.push({ type: 'rdv', icon: '🤝', title: r.objet, meta: `${r.heure} - ${entreprise?.name || ''}`, data: r });
   });
   
@@ -13578,7 +13662,7 @@ function renderUpcomingEvents() {
   const events = [];
   
   upcomingRdv.forEach(r => {
-    const entreprise = data.entreprises.find(e => e.id === r.entrepriseId);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(r.entrepriseId));
     events.push({ type: 'rdv', icon: '🤝', title: r.objet, meta: `${formatDateFR(r.date)} ${r.heure}`, date: r.date, data: r });
   });
   
@@ -13822,11 +13906,11 @@ async function saveEmail(event) {
 }
 
 function viewEmail(id) {
-  const email = data.emails.find(e => e.id === id);
+  const email = data.emails.find(e => String(e.id) === String(id));
   if (!email) return;
   
-  const contact = data.contacts.find(c => c.id === email.contactId);
-  const entreprise = data.entreprises.find(e => e.id === email.entrepriseId);
+  const contact = data.contacts.find(c => String(c.id) === String(email.contactId));
+  const entreprise = data.entreprises.find(e => String(e.id) === String(email.entrepriseId));
   
   document.getElementById('modalTitle').textContent = '📧 ' + email.subject;
   document.getElementById('modalBody').innerHTML = `
@@ -13945,8 +14029,8 @@ function renderRdv() {
   }
   
   container.innerHTML = rdvList.map(r => {
-    const entreprise = data.entreprises.find(e => e.id === r.entrepriseId);
-    const contact = data.contacts.find(c => c.id === r.contactId);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(r.entrepriseId));
+    const contact = data.contacts.find(c => String(c.id) === String(r.contactId));
     const statutBadge = getRdvStatutBadge(r.statut);
     
     return `
@@ -14166,7 +14250,7 @@ async function markRdvDone(id) {
 }
 
 function editRdv(id) {
-  const rdv = data.rdv.find(r => r.id === id);
+  const rdv = data.rdv.find(r => String(r.id) === String(id));
   if (!rdv) return;
   
   openNewRdvModal();
@@ -14264,7 +14348,7 @@ function renderAppels() {
   }
   
   container.innerHTML = appelsList.map(a => {
-    const entreprise = data.entreprises.find(e => e.id === a.entrepriseId);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(a.entrepriseId));
     const statutBadge = getAppelStatutBadge(a.statut);
     
     return `
@@ -14402,7 +14486,7 @@ function updateAppelPhone() {
   const contactId = parseInt(contactSelect.value);
   
   if (contactId) {
-    const contact = data.contacts.find(c => c.id === contactId);
+    const contact = data.contacts.find(c => String(c.id) === String(contactId));
     if (contact) {
       document.getElementById('appelContact').value = `${contact.firstName} ${contact.lastName}`;
       document.getElementById('appelTelephone').value = contact.phone || '';
@@ -14513,7 +14597,7 @@ async function markAppelToCallback(id) {
 }
 
 function editAppel(id) {
-  const appel = data.appels.find(a => a.id === id);
+  const appel = data.appels.find(a => String(a.id) === String(id));
   if (!appel) return;
   
   openNewAppelModal();
@@ -14614,7 +14698,7 @@ function renderTaches() {
   const today = new Date().toISOString().split('T')[0];
   
   container.innerHTML = tachesList.map(t => {
-    const entreprise = data.entreprises.find(e => e.id === t.entrepriseId);
+    const entreprise = data.entreprises.find(e => String(e.id) === String(t.entrepriseId));
     const isOverdue = t.echeance && t.echeance < today && t.statut !== 'terminee';
     
     return `
@@ -14799,7 +14883,7 @@ async function toggleTache(id) {
 }
 
 function editTache(id) {
-  const tache = data.taches.find(t => t.id === id);
+  const tache = data.taches.find(t => String(t.id) === String(id));
   if (!tache) return;
   
   openNewTacheModal();
