@@ -3679,7 +3679,18 @@
         padding: 0;
       }
     }
-  </style>
+  
+    /* Styles pour pipeline admin vide */
+    .pipeline-column-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 200px;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    </style>
 </head>
 <body>
 
@@ -6597,7 +6608,20 @@ function showPage(pageName) {
     case 'alertes': renderAlertes(); break;
     case 'equipe': renderEquipe(); break;
     case 'consolidation': renderConsolidation(); break;
-    case 'admin-pipeline': renderAdminPipeline(); break;
+    case 'admin-pipeline': 
+      try {
+        console.log('📍 Navigation vers admin-pipeline');
+        if (!data.opportunites || data.opportunites.length === 0) {
+          console.warn('⚠️ Pas d\'opportunités, tentative de rechargement...');
+          // Afficher les colonnes vides en attendant
+          renderAdminPipelineEmpty();
+        } else {
+          renderAdminPipeline();
+        }
+      } catch(e) {
+        console.error('❌ Erreur renderAdminPipeline:', e);
+      }
+      break;
     case 'admin-entreprises': renderAdminEntreprises(); break;
     case 'admin-contacts': renderAdminContacts(); break;
     case 'admin-opportunites': renderAdminOpportunites(); break;
@@ -10997,21 +11021,58 @@ function exportConsolidation() {
 // ADMIN: PIPELINE CONSOLIDÉ
 // =====================================================
 
+
+// Fonction pour afficher le pipeline vide avec les colonnes
+function renderAdminPipelineEmpty() {
+  console.log('🔄 renderAdminPipelineEmpty - Affichage des colonnes vides');
+  
+  const container = document.getElementById('adminPipelineContainer');
+  if (!container) return;
+  
+  const stages = PIPELINE_STAGES.filter(s => !s.isLost);
+  
+  container.innerHTML = stages.map(stage => `
+    <div class="pipeline-column" data-stage="${stage.id}" style="min-width: 250px; min-height: 400px;">
+      <div class="pipeline-header">
+        <div class="pipeline-title">
+          <div class="pipeline-color" style="background: ${stage.color};"></div>
+          ${stage.name}
+          <span class="pipeline-count">0</span>
+        </div>
+        <div class="pipeline-amount">0 €</div>
+      </div>
+      <div class="pipeline-cards" style="min-height: 300px; display: flex; align-items: center; justify-content: center;">
+        <div style="text-align: center; color: var(--text-muted);">
+          <p>Aucune opportunité</p>
+          <button class="btn btn-sm btn-primary" onclick="syncFromGoogleSheets()">🔄 Synchroniser</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  
+  // Mettre à jour les stats à 0
+  const els = ['adminPipelineTotal', 'adminPipelineValue', 'adminPipelineWon', 'adminPipelineAvgProba'];
+  els.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = id.includes('Proba') ? '0%' : '0';
+  });
+}
+
+
 function renderAdminPipeline() {
-  console.log('🔄 renderAdminPipeline appelé');
-  console.log('📊 Opportunités disponibles:', data.opportunites?.length || 0);
-  console.log('👥 Utilisateurs disponibles:', data.users?.length || 0);
+  console.log('🔄 renderAdminPipeline - DÉBUT');
   
-  // Vérifier si les données sont chargées
-  if (!data.opportunites || data.opportunites.length === 0) {
-    console.warn('⚠️ Aucune opportunité chargée');
-    const container = document.getElementById('adminPipelineContainer');
-    if (container) {
-      container.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-muted);"><p>Aucune opportunité à afficher</p><button class="btn btn-primary" onclick="syncFromGoogleSheets()">🔄 Synchroniser les données</button></div>';
-    }
-    return;
-  }
+  // Vérifier les données
+  const opps = data.opportunites || [];
+  const users = data.users || [];
   
+  console.log('📊 Données:', {
+    opportunites: opps.length,
+    users: users.length,
+    entreprises: (data.entreprises || []).length
+  });
+  
+  // Populate filter
   populateCommercialFilter('filterPipelineCommercial');
   
   // Reset color cache
@@ -11019,19 +11080,18 @@ function renderAdminPipeline() {
   
   const commercialFilter = document.getElementById('filterPipelineCommercial')?.value;
   
-  let opportunites = [...(data.opportunites || [])];
+  let opportunites = [...opps];
   
-  // Filter by commercial if selected - utiliser String() pour la comparaison
+  // Filter by commercial if selected
   if (commercialFilter) {
     opportunites = opportunites.filter(o => String(o.ownerId) === String(commercialFilter));
+    console.log('📋 Filtré par commercial:', commercialFilter, '→', opportunites.length, 'opportunités');
   }
   
-  console.log('📋 Opportunités après filtre:', opportunites.length);
-  
-  // Filter only active opportunities (not won/lost)
+  // Filter active opportunities
   const activeOpps = opportunites.filter(o => {
     const stage = PIPELINE_STAGES.find(s => s.id === o.stage);
-    return !stage?.isWon && !stage?.isLost;
+    return stage && !stage.isWon && !stage.isLost;
   });
   
   // Calculate stats
@@ -11043,7 +11103,7 @@ function renderAdminPipeline() {
   const wonThisMonth = opportunites
     .filter(o => {
       const stage = PIPELINE_STAGES.find(s => s.id === o.stage);
-      const updatedAt = new Date(o.updatedAt || o.createdAt);
+      const updatedAt = new Date(o.updatedAt || o.createdAt || now);
       return stage?.isWon && updatedAt >= startOfMonth;
     })
     .reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
@@ -11054,27 +11114,30 @@ function renderAdminPipeline() {
     : 0;
   
   // Update stats
-  const totalEl = document.getElementById('adminPipelineTotal');
-  const valueEl = document.getElementById('adminPipelineValue');
-  const wonEl = document.getElementById('adminPipelineWon');
-  const avgEl = document.getElementById('adminPipelineAvgProba');
+  const els = {
+    total: document.getElementById('adminPipelineTotal'),
+    value: document.getElementById('adminPipelineValue'),
+    won: document.getElementById('adminPipelineWon'),
+    avg: document.getElementById('adminPipelineAvgProba')
+  };
   
-  if (totalEl) totalEl.textContent = activeOpps.length;
-  if (valueEl) valueEl.textContent = formatCurrency(pipelineValue);
-  if (wonEl) wonEl.textContent = formatCurrency(wonThisMonth);
-  if (avgEl) avgEl.textContent = avgProba + '%';
+  if (els.total) els.total.textContent = activeOpps.length;
+  if (els.value) els.value.textContent = formatCurrency(pipelineValue);
+  if (els.won) els.won.textContent = formatCurrency(wonThisMonth);
+  if (els.avg) els.avg.textContent = avgProba + '%';
   
-  // Generate color legend
+  // Generate legend
   renderCommercialLegend();
   
-  // Render Kanban pipeline
+  // IMPORTANT: Render Kanban with ALL opportunities (not just active)
   renderAdminPipelineKanban(opportunites);
   
-  // Render table by user
+  // Render table
   renderAdminPipelineByUser(opportunites);
   
-  console.log('✅ renderAdminPipeline terminé');
+  console.log('✅ renderAdminPipeline - FIN');
 }
+
 
 function renderCommercialLegend() {
   const legend = document.getElementById('commercialLegend');
@@ -11092,15 +11155,36 @@ function renderCommercialLegend() {
 }
 
 function renderAdminPipelineKanban(opportunites) {
-  const container = document.getElementById('adminPipelineContainer');
+  console.log('🎯 renderAdminPipelineKanban appelé avec', opportunites?.length || 0, 'opportunités');
   
-  container.innerHTML = PIPELINE_STAGES.filter(s => !s.isLost).map(stage => {
-    const stageOpps = opportunites.filter(o => o.stage === stage.id);
+  const container = document.getElementById('adminPipelineContainer');
+  if (!container) {
+    console.error('❌ Container adminPipelineContainer non trouvé!');
+    return;
+  }
+  
+  // Filtrer les stages (exclure les perdus)
+  const stages = PIPELINE_STAGES.filter(s => !s.isLost);
+  console.log('📊 Stages à afficher:', stages.map(s => s.id));
+  
+  if (stages.length === 0) {
+    container.innerHTML = '<div style="padding: 40px; text-align: center;">Aucune étape définie</div>';
+    return;
+  }
+  
+  // Générer le HTML des colonnes
+  const columnsHTML = stages.map(stage => {
+    const stageOpps = (opportunites || []).filter(o => o.stage === stage.id);
     const total = stageOpps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
+    
+    console.log(`  - ${stage.id}: ${stageOpps.length} opportunités`);
     
     return `
       <div class="pipeline-column" data-stage="${stage.id}"
-           ondragover="handleDragOver(event)" ondrop="handleDrop(event, '${stage.id}')">
+           ondragover="handleDragOver(event)" 
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event, '${stage.id}')"
+           style="min-width: 250px; min-height: 400px;">
         <div class="pipeline-header">
           <div class="pipeline-title">
             <div class="pipeline-color" style="background: ${stage.color};"></div>
@@ -11109,14 +11193,18 @@ function renderAdminPipelineKanban(opportunites) {
           </div>
           <div class="pipeline-amount">${formatCurrency(total)}</div>
         </div>
-        <div class="pipeline-cards">
-          ${stageOpps.slice(0, 10).map(o => renderAdminPipelineCard(o, stage)).join('')}
-          ${stageOpps.length > 10 ? `<div class="text-muted text-center" style="padding: 8px;">+ ${stageOpps.length - 10} autres...</div>` : ''}
+        <div class="pipeline-cards" style="min-height: 300px;">
+          ${stageOpps.length > 0 ? stageOpps.slice(0, 15).map(o => renderAdminPipelineCard(o, stage)).join('') : '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 12px;">Aucune opportunité</div>'}
+          ${stageOpps.length > 15 ? `<div class="text-muted text-center" style="padding: 8px;">+ ${stageOpps.length - 15} autres...</div>` : ''}
         </div>
       </div>
     `;
   }).join('');
+  
+  container.innerHTML = columnsHTML;
+  console.log('✅ Kanban rendu avec', stages.length, 'colonnes');
 }
+
 
 // Couleurs pastel pour les commerciaux
 const COMMERCIAL_COLORS = [
@@ -16550,6 +16638,12 @@ async function syncFromGoogleSheets() {
     const total = (data.entreprises?.length || 0) + (data.contacts?.length || 0) + 
                   (data.opportunites?.length || 0) + (data.rdv?.length || 0) +
                   (data.appels?.length || 0) + (data.taches?.length || 0);
+    
+    // Rafraîchir la page actuelle
+    if (currentPage) {
+      console.log('🔄 Rafraîchissement de la page:', currentPage);
+      showPage(currentPage);
+    }
     
     showToast('Synchronisé', `${total} éléments chargés depuis Google Sheets`, 'success');
     
