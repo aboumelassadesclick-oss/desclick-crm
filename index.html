@@ -8216,7 +8216,9 @@ function addBCProductRow() {
   const allProducts = [
     ...getAccessibleProducts().map(p => ({ ...p, isPack: false })),
     ...(data.produits || []).filter(p => {
-      const userAccess = currentUser.accessTypes || [1];
+      let userAccess = currentUser.accessTypes || [1];
+      if (typeof userAccess === 'string') try { userAccess = JSON.parse(userAccess); } catch(e) { userAccess = [1]; }
+      if (!Array.isArray(userAccess)) userAccess = [1];
       return currentUser.role === 'admin' || userAccess.includes(p.access || 1);
     }).map(p => ({ ref: p.reference, name: p.name, model: p.model || '', price: p.price, category: p.category, characteristics: p.characteristics || '', notes: p.notes || '', isPack: false }))
   ];
@@ -8224,7 +8226,9 @@ function addBCProductRow() {
   const allPacks = [
     ...getAccessiblePacks().map(p => ({ ref: p.ref, name: p.name, price: p.price, characteristics: p.characteristics || '', notes: p.notes || '', isPack: true })),
     ...(data.packs || []).filter(p => {
-      const userAccess = currentUser.accessTypes || [1];
+      let userAccess = currentUser.accessTypes || [1];
+      if (typeof userAccess === 'string') try { userAccess = JSON.parse(userAccess); } catch(e) { userAccess = [1]; }
+      if (!Array.isArray(userAccess)) userAccess = [1];
       return currentUser.role === 'admin' || userAccess.includes(p.access || 1);
     }).map(p => ({ ref: p.ref, name: p.name, price: p.price, characteristics: p.characteristics || '', notes: p.notes || '', isPack: true }))
   ];
@@ -10223,7 +10227,17 @@ function renderEquipe() {
       .reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     
     // Afficher les types d'accès
-    const accessTypes = u.accessTypes || [1];
+    let accessTypes = u.accessTypes || [1];
+    // Parser si c'est une chaîne JSON
+    if (typeof accessTypes === 'string') {
+      try {
+        accessTypes = JSON.parse(accessTypes);
+      } catch (e) {
+        accessTypes = [1];
+      }
+    }
+    if (!Array.isArray(accessTypes)) accessTypes = [1];
+    
     const accessBadges = accessTypes.map(t => {
       const colors = { 1: 'success', 2: 'warning', 3: 'danger' };
       const labels = { 1: 'Niveau 1', 2: 'Niveau 2', 3: 'Niveau 3' };
@@ -10255,7 +10269,11 @@ function openAccessModal(userId) {
   const user = data.users.find(u => u.id === userId);
   if (!user) return;
   
-  const accessTypes = user.accessTypes || [1];
+  let accessTypes = user.accessTypes || [1];
+  if (typeof accessTypes === 'string') {
+    try { accessTypes = JSON.parse(accessTypes); } catch(e) { accessTypes = [1]; }
+  }
+  if (!Array.isArray(accessTypes)) accessTypes = [1];
   
   const content = `
     <div style="padding: 20px;">
