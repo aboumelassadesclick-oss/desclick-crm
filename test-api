@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test API DesClick CRM v5</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+      color: #fff; 
+      min-height: 100vh; 
+      padding: 20px; 
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { color: #00d4ff; margin-bottom: 10px; font-size: 28px; }
+    .subtitle { color: #888; margin-bottom: 30px; }
+    .card { 
+      background: rgba(255,255,255,0.05); 
+      border: 1px solid rgba(255,255,255,0.1); 
+      border-radius: 16px; 
+      padding: 24px; 
+      margin-bottom: 20px; 
+      backdrop-filter: blur(10px);
+    }
+    .card h3 { color: #00d4ff; margin-bottom: 15px; font-size: 16px; }
+    .url-display { 
+      background: rgba(0,0,0,0.3); 
+      padding: 12px 16px; 
+      border-radius: 8px; 
+      font-family: 'JetBrains Mono', monospace; 
+      font-size: 11px; 
+      color: #00d4ff; 
+      word-break: break-all;
+      margin-bottom: 15px;
+    }
+    .btn { 
+      padding: 12px 20px; 
+      border: none; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      font-weight: 600; 
+      font-size: 14px;
+      margin: 5px; 
+      transition: all 0.3s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+    .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+    .btn-success { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+    .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+    .stats { 
+      display: grid; 
+      grid-template-columns: repeat(4, 1fr); 
+      gap: 15px; 
+      margin: 20px 0;
+    }
+    .stat { 
+      background: rgba(0,0,0,0.2); 
+      padding: 20px; 
+      border-radius: 12px; 
+      text-align: center;
+    }
+    .stat-value { font-size: 32px; font-weight: 700; }
+    .stat-value.pass { color: #10b981; }
+    .stat-value.fail { color: #ef4444; }
+    .stat-label { font-size: 12px; color: #888; margin-top: 5px; }
+    .logs { 
+      background: rgba(0,0,0,0.4); 
+      border-radius: 12px; 
+      padding: 16px; 
+      height: 350px; 
+      overflow-y: auto; 
+      font-family: 'JetBrains Mono', monospace; 
+      font-size: 12px;
+      line-height: 1.8;
+    }
+    .log-success { color: #10b981; }
+    .log-error { color: #ef4444; }
+    .log-info { color: #00d4ff; }
+    .log-warn { color: #fbbf24; }
+    .log-dim { color: #666; }
+    .status { 
+      display: inline-block; 
+      padding: 4px 12px; 
+      border-radius: 20px; 
+      font-size: 11px; 
+      font-weight: 600;
+    }
+    .status-pass { background: rgba(16,185,129,0.2); color: #10b981; }
+    .status-fail { background: rgba(239,68,68,0.2); color: #ef4444; }
+    .status-pending { background: rgba(251,191,36,0.2); color: #fbbf24; }
+    .test-item { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .hidden { display: none; }
+    @media (max-width: 600px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .btn { width: 100%; margin: 5px 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Test API DesClick CRM</h1>
+    <p class="subtitle">Version 5.0 - Diagnostic complet</p>
+    
+    <div class="card">
+      <h3>📡 URL de l'API</h3>
+      <div class="url-display" id="apiUrl">https://script.google.com/macros/s/AKfycbxu4ncqWOgSh1_opvFrCiQUnzjkFj_5sGx6kvFyMBPzSzcVwl8Ca-IgFllSbSKn72Vv/exec</div>
+      <div>
+        <button class="btn btn-primary" onclick="runAllTests()">▶️ Lancer les tests</button>
+        <button class="btn btn-danger" onclick="clearLogs()">🗑️ Effacer</button>
+      </div>
+    </div>
+    
+    <div class="card" id="statsCard">
+      <h3>📊 Résultats</h3>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-value" id="statTotal">0</div>
+          <div class="stat-label">Tests</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value pass" id="statPass">0</div>
+          <div class="stat-label">✅ Réussis</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value fail" id="statFail">0</div>
+          <div class="stat-label">❌ Échoués</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statTime">0s</div>
+          <div class="stat-label">⏱️ Durée</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <h3>📋 Journal des tests</h3>
+      <div class="logs" id="logs">
+        <div class="log-info">👋 Bienvenue ! Cliquez sur "Lancer les tests" pour démarrer.</div>
+        <div class="log-dim">─────────────────────────────────────────</div>
+        <div class="log-info">ℹ️ Cette page doit être hébergée sur un serveur (GitHub Pages, etc.)</div>
+        <div class="log-info">ℹ️ Elle ne fonctionnera pas en local (file://)</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbxu4ncqWOgSh1_opvFrCiQUnzjkFj_5sGx6kvFyMBPzSzcVwl8Ca-IgFllSbSKn72Vv/exec';
+let token = null;
+let stats = { total: 0, pass: 0, fail: 0 };
+
+function log(msg, type = 'info') {
+  const logs = document.getElementById('logs');
+  const time = new Date().toLocaleTimeString();
+  logs.innerHTML += `<div class="log-${type}">[${time}] ${msg}</div>`;
+  logs.scrollTop = logs.scrollHeight;
+}
+
+function clearLogs() {
+  document.getElementById('logs').innerHTML = '';
+  stats = { total: 0, pass: 0, fail: 0 };
+  updateStats();
+  log('🧹 Logs effacés', 'info');
+}
+
+function updateStats(time = 0) {
+  document.getElementById('statTotal').textContent = stats.total;
+  document.getElementById('statPass').textContent = stats.pass;
+  document.getElementById('statFail').textContent = stats.fail;
+  document.getElementById('statTime').textContent = (time / 1000).toFixed(1) + 's';
+}
+
+async function apiCall(action, params = {}) {
+  const url = new URL(API_URL);
+  url.searchParams.set('action', action);
+  if (token) url.searchParams.set('token', token);
+  
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== null && v !== undefined) {
+      url.searchParams.set(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+    }
+  }
+  
+  const start = Date.now();
+  try {
+    const res = await fetch(url.toString());
+    const text = await res.text();
+    const data = JSON.parse(text);
+    return { ...data, _time: Date.now() - start };
+  } catch (e) {
+    return { success: false, message: e.message, _time: Date.now() - start };
+  }
+}
+
+async function runTest(name, testFn) {
+  stats.total++;
+  log(`🔄 Test: ${name}...`, 'info');
+  
+  try {
+    const result = await testFn();
+    if (result) {
+      stats.pass++;
+      log(`✅ ${name} - RÉUSSI`, 'success');
+      return true;
+    } else {
+      stats.fail++;
+      log(`❌ ${name} - ÉCHOUÉ`, 'error');
+      return false;
+    }
+  } catch (e) {
+    stats.fail++;
+    log(`❌ ${name} - ERREUR: ${e.message}`, 'error');
+    return false;
+  }
+}
+
+async function runAllTests() {
+  clearLogs();
+  const startTime = Date.now();
+  
+  log('🚀 Démarrage des tests...', 'info');
+  log('─────────────────────────────────────────', 'dim');
+  
+  // Test 1: Connexion API
+  await runTest('Connexion API', async () => {
+    const res = await apiCall('test');
+    if (res.success) {
+      log(`   Version: ${res.version}`, 'info');
+      log(`   Temps: ${res._time}ms`, 'info');
+    } else {
+      log(`   Erreur: ${res.message}`, 'error');
+    }
+    return res.success;
+  });
+  
+  // Test 2: Login
+  await runTest('Login admin/admin123', async () => {
+    const res = await apiCall('login', { username: 'admin', password: 'admin123' });
+    if (res.success && res.data) {
+      token = res.data.token;
+      log(`   Token: ${token.substring(0, 20)}...`, 'info');
+      log(`   User: ${res.data.user.firstName} ${res.data.user.lastName}`, 'info');
+    } else {
+      log(`   Erreur: ${res.message}`, 'error');
+    }
+    return res.success && res.data && res.data.token;
+  });
+  
+  // Test 3: Settings
+  await runTest('Récupération Settings', async () => {
+    const res = await apiCall('getSettings');
+    if (res.success) {
+      log(`   Paramètres: ${JSON.stringify(res.data).substring(0, 80)}...`, 'info');
+    }
+    return res.success;
+  });
+  
+  // Test 4: Entreprises
+  await runTest('Liste Entreprises', async () => {
+    const res = await apiCall('getEntreprises');
+    if (res.success) {
+      log(`   ${res.data.length} entreprise(s) trouvée(s)`, 'info');
+    }
+    return res.success;
+  });
+  
+  // Test 5: Créer entreprise
+  await runTest('Créer Entreprise', async () => {
+    const data = {
+      name: 'Test API ' + Date.now(),
+      type: 'Prospect',
+      email: 'test@example.com',
+      city: 'Paris'
+    };
+    const res = await apiCall('createEntreprise', { data });
+    if (res.success && res.data) {
+      log(`   Créée avec ID: ${res.data.id}`, 'info');
+    }
+    return res.success && res.data && res.data.id;
+  });
+  
+  // Test 6: Vérification
+  await runTest('Vérifier création', async () => {
+    const res = await apiCall('getEntreprises');
+    if (res.success) {
+      const testEnt = res.data.find(e => e.name && e.name.startsWith('Test API'));
+      if (testEnt) {
+        log(`   Trouvée: ${testEnt.name}`, 'info');
+        return true;
+      }
+    }
+    return false;
+  });
+  
+  // Test 7: Dashboard
+  await runTest('Dashboard', async () => {
+    const res = await apiCall('getDashboard');
+    if (res.success && res.data) {
+      log(`   Entreprises: ${res.data.entreprises}, CA: ${res.data.totalCA}€`, 'info');
+    }
+    return res.success;
+  });
+  
+  const totalTime = Date.now() - startTime;
+  log('─────────────────────────────────────────', 'dim');
+  
+  if (stats.fail === 0) {
+    log(`🎉 TOUS LES TESTS RÉUSSIS (${stats.pass}/${stats.total})`, 'success');
+  } else {
+    log(`⚠️ ${stats.fail} test(s) échoué(s) sur ${stats.total}`, 'warn');
+  }
+  
+  updateStats(totalTime);
+}
+</script>
+</body>
+</html>
