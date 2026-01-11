@@ -6467,6 +6467,19 @@ async function handleLogin(e) {
           data.users = results[9].value.data || [];
         }
         
+        // S'assurer que les tableaux optionnels existent
+        if (!data.activities) data.activities = [];
+        if (!data.orders) data.orders = [];
+        if (!data.messages) data.messages = [];
+        if (!data.alertes) data.alertes = [];
+        
+        console.log('📊 Données finales:', {
+          entreprises: data.entreprises?.length,
+          contacts: data.contacts?.length,
+          opportunites: data.opportunites?.length,
+          activities: data.activities?.length
+        });
+        
         hideLoadingOverlay();
         showApp();
         
@@ -6585,8 +6598,17 @@ function showApp() {
   initNavSections();
   
   // Initialize dashboard
-  showPage('dashboard');
-  updateNotificationBadges();
+  try {
+    showPage('dashboard');
+  } catch (e) {
+    console.warn('⚠️ Erreur lors du rendu du dashboard:', e);
+  }
+  
+  try {
+    updateNotificationBadges();
+  } catch (e) {
+    console.warn('⚠️ Erreur updateNotificationBadges:', e);
+  }
 }
 
 // =====================================================
@@ -6630,7 +6652,7 @@ function showPage(pageName) {
     case 'admin-pipeline': 
       try {
         console.log('📍 Navigation vers admin-pipeline');
-        if (!data.opportunites || data.opportunites.length === 0) {
+        if (!data.opportunites || (data.opportunites || []).length === 0) {
           console.warn('⚠️ Pas d\'opportunités, tentative de rechargement...');
           // Afficher les colonnes vides en attendant
           renderAdminPipelineEmpty();
@@ -6880,7 +6902,7 @@ function updateChart() {
 }
 
 function renderActivityList() {
-  const activities = data.activities.slice(-10).reverse();
+  const activities = (data.activities || []).slice(-10).reverse();
   const container = document.getElementById('activityList');
   
   if (activities.length === 0) {
@@ -7256,10 +7278,10 @@ function deleteEntreprise(id) {
     })();
   } else {
     const entreprise = data.entreprises.find(e => String(e.id) === String(id));
-    data.entreprises = data.entreprises.filter(e => e.id !== id);
+    data.entreprises = (data.entreprises || []).filter(e => e.id !== id);
     // Also delete related contacts and opportunities
-    data.contacts = data.contacts.filter(c => c.entrepriseId !== id);
-    data.opportunites = data.opportunites.filter(o => o.entrepriseId !== id);
+    data.contacts = (data.contacts || []).filter(c => c.entrepriseId !== id);
+    data.opportunites = (data.opportunites || []).filter(o => o.entrepriseId !== id);
     
     logActivity('delete', 'Entreprise supprimée: ' + (entreprise?.name || ''));
     saveData();
@@ -7495,7 +7517,7 @@ function deleteContact(id) {
     })();
   } else {
     const contact = data.contacts.find(c => String(c.id) === String(id));
-    data.contacts = data.contacts.filter(c => c.id !== id);
+    data.contacts = (data.contacts || []).filter(c => c.id !== id);
     logActivity('delete', `Contact supprimé: ${contact?.firstName} ${contact?.lastName}`);
     saveData();
     renderContacts();
@@ -7707,7 +7729,7 @@ function deleteOpportunite(id) {
     })();
   } else {
     const opp = data.opportunites.find(o => String(o.id) === String(id));
-    data.opportunites = data.opportunites.filter(o => o.id !== id);
+    data.opportunites = (data.opportunites || []).filter(o => o.id !== id);
     logActivity('delete', `Opportunité supprimée: ${opp?.name}`);
     saveData();
     renderOpportunites();
@@ -9878,7 +9900,7 @@ function renderMessaging() {
 }
 
 function renderConversations() {
-  const users = data.users.filter(u => u.id !== currentUser.id && u.isActive);
+  const users = (data.users || []).filter(u => u.id !== currentUser.id && u.isActive);
   const container = document.getElementById('conversationsList');
   
   if (users.length === 0) {
@@ -10617,14 +10639,14 @@ document.addEventListener('click', function(e) {
 // =====================================================
 
 function renderEquipe() {
-  const users = data.users.filter(u => u.role === 'commercial');
+  const users = (data.users || []).filter(u => u.role === 'commercial');
   
   // Stats
   document.getElementById('statTotalUsers').textContent = users.filter(u => u.isActive).length;
   
   const totalCA = users.reduce((sum, u) => {
     const userId = String(u.id);
-    const opps = data.opportunites.filter(o => String(o.ownerId) === userId && PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon);
+    const opps = (data.opportunites || []).filter(o => String(o.ownerId) === userId && PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon);
     return sum + opps.reduce((s, o) => s + (parseFloat(o.amount) || 0), 0);
   }, 0);
   document.getElementById('statTotalTeamCA').textContent = formatCurrency(totalCA);
@@ -10649,8 +10671,8 @@ function renderEquipe() {
   
   container.innerHTML = users.map(u => {
     const userId = String(u.id);
-    const entreprises = data.entreprises.filter(e => String(e.ownerId) === userId).length;
-    const opportunites = data.opportunites.filter(o => String(o.ownerId) === userId).length;
+    const entreprises = (data.entreprises || []).filter(e => String(e.ownerId) === userId).length;
+    const opportunites = (data.opportunites || []).filter(o => String(o.ownerId) === userId).length;
     const caGenere = data.opportunites
       .filter(o => String(o.ownerId) === userId && PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon)
       .reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
@@ -10960,19 +10982,19 @@ function renderConsolidation() {
   console.log('📊 renderConsolidation - data.opportunites:', data.opportunites);
   
   // Global stats
-  document.getElementById('consolEntreprises').textContent = data.entreprises.length;
-  document.getElementById('consolContacts').textContent = data.contacts.length;
-  document.getElementById('consolOpportunites').textContent = data.opportunites.length;
+  document.getElementById('consolEntreprises').textContent = (data.entreprises || []).length;
+  document.getElementById('consolContacts').textContent = (data.contacts || []).length;
+  document.getElementById('consolOpportunites').textContent = (data.opportunites || []).length;
   
   const totalCA = data.opportunites.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
   document.getElementById('consolCA').textContent = formatCurrency(totalCA);
   
   // Per user stats
-  const users = data.users.filter(u => u.role === 'commercial');
+  const users = (data.users || []).filter(u => u.role === 'commercial');
   console.log('📊 Commerciaux trouvés:', users);
   
   // Log des ownerIds pour debug
-  console.log('📊 OwnerIds des entreprises:', data.entreprises.map(e => ({ id: e.id, name: e.name, ownerId: e.ownerId })));
+  console.log('📊 OwnerIds des entreprises:', (data.entreprises || []).map(e => ({ id: e.id, name: e.name, ownerId: e.ownerId })));
   
   const container = document.getElementById('consolidationTable');
   
@@ -10987,9 +11009,9 @@ function renderConsolidation() {
   
   container.innerHTML = users.map(u => {
     const userId = String(u.id);
-    const entreprises = data.entreprises.filter(e => String(e.ownerId) === userId).length;
-    const contacts = data.contacts.filter(c => String(c.ownerId) === userId).length;
-    const opps = data.opportunites.filter(o => String(o.ownerId) === userId);
+    const entreprises = (data.entreprises || []).filter(e => String(e.ownerId) === userId).length;
+    const contacts = (data.contacts || []).filter(c => String(c.ownerId) === userId).length;
+    const opps = (data.opportunites || []).filter(o => String(o.ownerId) === userId);
     const caPipeline = opps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     const wonOpps = opps.filter(o => PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon);
     const caGagne = wonOpps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
@@ -11017,14 +11039,14 @@ function renderConsolidation() {
 }
 
 function exportConsolidation() {
-  const users = data.users.filter(u => u.role === 'commercial');
+  const users = (data.users || []).filter(u => u.role === 'commercial');
   
   const headers = ['Commercial', 'Entreprises', 'Contacts', 'Opportunités', 'CA Pipeline', 'CA Gagné'];
   const rows = users.map(u => {
     const userId = String(u.id);
-    const entreprises = data.entreprises.filter(e => String(e.ownerId) === userId).length;
-    const contacts = data.contacts.filter(c => String(c.ownerId) === userId).length;
-    const opps = data.opportunites.filter(o => String(o.ownerId) === userId);
+    const entreprises = (data.entreprises || []).filter(e => String(e.ownerId) === userId).length;
+    const contacts = (data.contacts || []).filter(c => String(c.ownerId) === userId).length;
+    const opps = (data.opportunites || []).filter(o => String(o.ownerId) === userId);
     const caPipeline = opps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     const caGagne = opps.filter(o => PIPELINE_STAGES.find(s => s.id === o.stage)?.isWon)
       .reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
@@ -11244,7 +11266,7 @@ let commercialColorMap = {};
 
 function getCommercialColor(userId) {
   if (!commercialColorMap[userId]) {
-    const commercials = data.users.filter(u => u.role === 'commercial');
+    const commercials = (data.users || []).filter(u => u.role === 'commercial');
     const index = commercials.findIndex(u => u.id === userId);
     commercialColorMap[userId] = COMMERCIAL_COLORS[index % COMMERCIAL_COLORS.length];
   }
@@ -11448,7 +11470,7 @@ function viewOpportuniteDetail(oppId) {
 
 function exportAdminPipeline() {
   const headers = ['Opportunité', 'Entreprise', 'Étape', 'Montant', 'Probabilité', 'Date clôture', 'Commercial'];
-  const rows = data.opportunites.map(o => {
+  const rows = (data.opportunites || []).map(o => {
     const entreprise = data.entreprises.find(e => String(e.id) === String(o.entrepriseId));
     const owner = data.users.find(u => String(u.id) === String(o.ownerId));
     const stage = PIPELINE_STAGES.find(s => s.id === o.stage);
@@ -11675,8 +11697,8 @@ function renderAdminEntreprises() {
   
   container.innerHTML = entreprises.map(e => {
     const owner = data.users.find(u => String(u.id) === String(e.ownerId));
-    const contacts = data.contacts.filter(c => c.entrepriseId === e.id).length;
-    const opps = data.opportunites.filter(o => o.entrepriseId === e.id);
+    const contacts = (data.contacts || []).filter(c => c.entrepriseId === e.id).length;
+    const opps = (data.opportunites || []).filter(o => o.entrepriseId === e.id);
     const ca = opps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     
     return `
@@ -11696,10 +11718,10 @@ function renderAdminEntreprises() {
 
 function exportAdminEntreprises() {
   const headers = ['Entreprise', 'Type', 'Secteur', 'Ville', 'Commercial', 'Contacts', 'Opportunités', 'CA'];
-  const rows = data.entreprises.map(e => {
+  const rows = (data.entreprises || []).map(e => {
     const owner = data.users.find(u => String(u.id) === String(e.ownerId));
-    const contacts = data.contacts.filter(c => c.entrepriseId === e.id).length;
-    const opps = data.opportunites.filter(o => o.entrepriseId === e.id);
+    const contacts = (data.contacts || []).filter(c => c.entrepriseId === e.id).length;
+    const opps = (data.opportunites || []).filter(o => o.entrepriseId === e.id);
     const ca = opps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     return [e.name, e.type, e.industry, e.city, `${owner?.firstName || ''} ${owner?.lastName || ''}`, contacts, opps.length, ca];
   });
@@ -11772,7 +11794,7 @@ function renderAdminContacts() {
 
 function exportAdminContacts() {
   const headers = ['ID Entreprise', 'Entreprise', 'ID Contact', 'Nom', 'Prénom', 'E-mail', 'N° Mobile', 'Fonction', 'Type', 'Commercial'];
-  const rows = data.contacts.map(c => {
+  const rows = (data.contacts || []).map(c => {
     const entreprise = data.entreprises.find(e => String(e.id) === String(c.entrepriseId));
     const owner = data.users.find(u => String(u.id) === String(c.ownerId));
     const contactType = CONTACT_TYPES.find(t => String(t.id) === String(c.contactType));
@@ -11884,7 +11906,7 @@ function renderAdminOpportunites() {
 
 function exportAdminOpportunites() {
   const headers = ['ID Opportunité', 'Nom opportunité', 'Description', 'ID Entreprise', 'Entreprise', 'Ville', 'Interlocuteur', 'N° Mobile', 'Étape', 'Montant', 'Date création', 'Date clôture', '% Réussite', 'État', 'Motif échec', 'Priorité', 'Source', 'Avancement', 'Commercial'];
-  const rows = data.opportunites.map(o => {
+  const rows = (data.opportunites || []).map(o => {
     const entreprise = data.entreprises.find(e => String(e.id) === String(o.entrepriseId));
     const contact = data.contacts.find(c => String(c.id) === String(o.contactId));
     const owner = data.users.find(u => String(u.id) === String(o.ownerId));
@@ -11991,7 +12013,7 @@ function populateCommercialFilter(selectId) {
   const select = document.getElementById(selectId);
   if (!select || select.options.length > 1) return;
   
-  const commerciaux = data.users.filter(u => u.role === 'commercial');
+  const commerciaux = (data.users || []).filter(u => u.role === 'commercial');
   commerciaux.forEach(u => {
     const option = document.createElement('option');
     option.value = u.id;
@@ -12440,7 +12462,7 @@ function getContactForm(id) {
 function getOpportuniteForm(id) {
   const o = id ? data.opportunites.find(op => op.id === id) : {};
   const entreprises = getAccessibleEntreprises();
-  const contacts = data.contacts.filter(c => !o.entrepriseId || c.entrepriseId === o.entrepriseId);
+  const contacts = (data.contacts || []).filter(c => !o.entrepriseId || c.entrepriseId === o.entrepriseId);
   
   // Get all products, services and packs for the dropdown
   const allItems = [
@@ -12574,7 +12596,7 @@ function updateProbability(select) {
 }
 
 function updateContactDropdown(entrepriseId, selectId) {
-  const contacts = data.contacts.filter(c => c.entrepriseId === parseInt(entrepriseId));
+  const contacts = (data.contacts || []).filter(c => c.entrepriseId === parseInt(entrepriseId));
   const select = document.getElementById(selectId);
   if (select) {
     select.innerHTML = '<option value="">-- Sélectionner --</option>' +
@@ -12666,7 +12688,7 @@ function getProduitForm(id) {
 }
 
 function getMessageForm() {
-  const users = data.users.filter(u => u.id !== currentUser.id && u.isActive);
+  const users = (data.users || []).filter(u => u.id !== currentUser.id && u.isActive);
   
   return `
     <form onsubmit="sendDirectMessage(event)">
@@ -12711,7 +12733,7 @@ function sendDirectMessage(e) {
 }
 
 function getAlerteForm() {
-  const users = data.users.filter(u => u.isActive);
+  const users = (data.users || []).filter(u => u.isActive);
   const entreprises = data.entreprises || [];
   const opportunities = data.opportunites || [];
   
@@ -13523,7 +13545,7 @@ function getAccessibleEntreprises() {
     return data.entreprises;
   }
   const userId = String(currentUser.id);
-  return data.entreprises.filter(e => String(e.ownerId) === userId);
+  return (data.entreprises || []).filter(e => String(e.ownerId) === userId);
 }
 
 function logActivity(type, message) {
@@ -13988,8 +14010,8 @@ function filterEmails(filter, btn) {
 function openNewEmailModal() {
   console.log('📧 openNewEmailModal appelée');
   try {
-    const entrepriseOptions = data.entreprises.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
-    const contactOptions = data.contacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName} - ${c.email}</option>`).join('');
+    const entrepriseOptions = (data.entreprises || []).map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+    const contactOptions = (data.contacts || []).map(c => `<option value="${c.id}">${c.firstName} ${c.lastName} - ${c.email}</option>`).join('');
   
   document.getElementById('modalTitle').textContent = '✉️ Nouveau message';
   document.getElementById('modalBody').innerHTML = `
@@ -14043,11 +14065,11 @@ function updateEmailContacts() {
   
   if (!entrepriseId) {
     contactSelect.innerHTML = '<option value="">-- Sélectionner un contact --</option>' + 
-      data.contacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName} - ${c.email}</option>`).join('');
+      (data.contacts || []).map(c => `<option value="${c.id}">${c.firstName} ${c.lastName} - ${c.email}</option>`).join('');
     return;
   }
   
-  const filteredContacts = data.contacts.filter(c => c.entrepriseId === entrepriseId);
+  const filteredContacts = (data.contacts || []).filter(c => c.entrepriseId === entrepriseId);
   contactSelect.innerHTML = '<option value="">-- Sélectionner un contact --</option>' + 
     filteredContacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName} - ${c.email}</option>`).join('');
 }
@@ -14287,9 +14309,9 @@ function filterRdv(filter, btn) {
 }
 
 function openNewRdvModal() {
-  const entrepriseOptions = data.entreprises.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
-  const contactOptions = data.contacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName}</option>`).join('');
-  const opportuniteOptions = data.opportunites.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
+  const entrepriseOptions = (data.entreprises || []).map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+  const contactOptions = (data.contacts || []).map(c => `<option value="${c.id}">${c.firstName} ${c.lastName}</option>`).join('');
+  const opportuniteOptions = (data.opportunites || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('');
   
   document.getElementById('modalTitle').textContent = '🤝 Nouveau rendez-vous';
   document.getElementById('modalBody').innerHTML = `
@@ -14352,11 +14374,11 @@ function updateRdvContacts() {
   
   if (!entrepriseId) {
     contactSelect.innerHTML = '<option value="">-- Sélectionner --</option>' + 
-      data.contacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName}</option>`).join('');
+      (data.contacts || []).map(c => `<option value="${c.id}">${c.firstName} ${c.lastName}</option>`).join('');
     return;
   }
   
-  const filteredContacts = data.contacts.filter(c => c.entrepriseId === entrepriseId);
+  const filteredContacts = (data.contacts || []).filter(c => c.entrepriseId === entrepriseId);
   contactSelect.innerHTML = '<option value="">-- Sélectionner --</option>' + 
     filteredContacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName}</option>`).join('');
 }
@@ -14610,8 +14632,8 @@ function filterAppels(filter, btn) {
 }
 
 function openNewAppelModal() {
-  const entrepriseOptions = data.entreprises.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
-  const contactOptions = data.contacts.map(c => `<option value="${c.id}" data-phone="${c.phone}">${c.firstName} ${c.lastName} - ${c.phone}</option>`).join('');
+  const entrepriseOptions = (data.entreprises || []).map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+  const contactOptions = (data.contacts || []).map(c => `<option value="${c.id}" data-phone="${c.phone}">${c.firstName} ${c.lastName} - ${c.phone}</option>`).join('');
   
   document.getElementById('modalTitle').textContent = '📞 Nouvel appel';
   document.getElementById('modalBody').innerHTML = `
@@ -14688,11 +14710,11 @@ function updateAppelContacts() {
   
   if (!entrepriseId) {
     contactSelect.innerHTML = '<option value="">-- Sélectionner --</option>' + 
-      data.contacts.map(c => `<option value="${c.id}" data-phone="${c.phone}">${c.firstName} ${c.lastName} - ${c.phone}</option>`).join('');
+      (data.contacts || []).map(c => `<option value="${c.id}" data-phone="${c.phone}">${c.firstName} ${c.lastName} - ${c.phone}</option>`).join('');
     return;
   }
   
-  const filteredContacts = data.contacts.filter(c => c.entrepriseId === entrepriseId);
+  const filteredContacts = (data.contacts || []).filter(c => c.entrepriseId === entrepriseId);
   contactSelect.innerHTML = '<option value="">-- Sélectionner --</option>' + 
     filteredContacts.map(c => `<option value="${c.id}" data-phone="${c.phone}">${c.firstName} ${c.lastName} - ${c.phone}</option>`).join('');
 }
@@ -14967,8 +14989,8 @@ function filterTaches(filter, btn) {
 }
 
 function openNewTacheModal() {
-  const entrepriseOptions = data.entreprises.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
-  const opportuniteOptions = data.opportunites.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
+  const entrepriseOptions = (data.entreprises || []).map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+  const opportuniteOptions = (data.opportunites || []).map(o => `<option value="${o.id}">${o.name}</option>`).join('');
   
   document.getElementById('modalTitle').textContent = '✅ Nouvelle tâche';
   document.getElementById('modalBody').innerHTML = `
@@ -15238,7 +15260,7 @@ window.renderAdminPipelineFixed = function() {
   const filterCommercial = document.getElementById('filterPipelineCommercial')?.value || '';
   
   // Charger la liste des commerciaux
-  const commerciaux = data.users.filter(u => u.role === 'commercial');
+  const commerciaux = (data.users || []).filter(u => u.role === 'commercial');
   const selectEl = document.getElementById('filterPipelineCommercial');
   if (selectEl && selectEl.options.length <= 1) {
     selectEl.innerHTML = '<option value="">Tous les commerciaux</option>' +
@@ -16453,6 +16475,12 @@ window.forceReloadFromGoogleSheets = async function() {
     if (tachesRes.success) data.taches = tachesRes.data || [];
     if (usersRes.success && usersRes.data) data.users = usersRes.data;
     
+    // S'assurer que les tableaux optionnels existent
+    if (!data.activities) data.activities = [];
+    if (!data.orders) data.orders = [];
+    if (!data.messages) data.messages = [];
+    if (!data.alertes) data.alertes = [];
+    
     hideLoadingOverlay();
     
     // Rafraîchir l'affichage
@@ -16652,7 +16680,7 @@ async function syncFromGoogleSheets() {
     // Mettre à jour les données
     if (entreprisesRes.success && entreprisesRes.data) {
       data.entreprises = entreprisesRes.data;
-      console.log('✅ Entreprises chargées:', data.entreprises.length);
+      console.log('✅ Entreprises chargées:', (data.entreprises || []).length);
     } else {
       console.warn('⚠️ Entreprises: échec ou données vides');
     }
@@ -16663,7 +16691,7 @@ async function syncFromGoogleSheets() {
     
     if (opportunitesRes.success && opportunitesRes.data) {
       data.opportunites = opportunitesRes.data;
-      console.log('✅ Opportunités chargées:', data.opportunites.length);
+      console.log('✅ Opportunités chargées:', (data.opportunites || []).length);
     } else {
       console.warn('⚠️ Opportunités: échec ou données vides', opportunitesRes);
     }
@@ -16673,6 +16701,12 @@ async function syncFromGoogleSheets() {
     if (appelsRes.success && appelsRes.data) data.appels = appelsRes.data;
     if (tachesRes.success && tachesRes.data) data.taches = tachesRes.data;
     if (usersRes.success && usersRes.data) data.users = usersRes.data;
+    
+    // S'assurer que les tableaux optionnels existent
+    if (!data.activities) data.activities = [];
+    if (!data.orders) data.orders = [];
+    if (!data.messages) data.messages = [];
+    if (!data.alertes) data.alertes = [];
     
     hideLoadingOverlay();
     
