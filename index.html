@@ -4966,8 +4966,10 @@
               <thead>
                 <tr>
                   <th>Commercial</th>
+                  <th>Lead</th>
                   <th>Prospection</th>
                   <th>Qualification</th>
+                  <th>Découverte</th>
                   <th>Proposition</th>
                   <th>Négociation</th>
                   <th>Closing</th>
@@ -10589,7 +10591,7 @@ function renderEquipe() {
   if (users.length === 0) {
     container.innerHTML = `
       <tr>
-        <td colspan="8">
+        <td colspan="10">
           <div class="empty-state">
             <div class="empty-state-icon">👔</div>
             <h3 class="empty-state-title">Aucun commercial</h3>
@@ -10996,6 +10998,20 @@ function exportConsolidation() {
 // =====================================================
 
 function renderAdminPipeline() {
+  console.log('🔄 renderAdminPipeline appelé');
+  console.log('📊 Opportunités disponibles:', data.opportunites?.length || 0);
+  console.log('👥 Utilisateurs disponibles:', data.users?.length || 0);
+  
+  // Vérifier si les données sont chargées
+  if (!data.opportunites || data.opportunites.length === 0) {
+    console.warn('⚠️ Aucune opportunité chargée');
+    const container = document.getElementById('adminPipelineContainer');
+    if (container) {
+      container.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-muted);"><p>Aucune opportunité à afficher</p><button class="btn btn-primary" onclick="syncFromGoogleSheets()">🔄 Synchroniser les données</button></div>';
+    }
+    return;
+  }
+  
   populateCommercialFilter('filterPipelineCommercial');
   
   // Reset color cache
@@ -11003,12 +11019,14 @@ function renderAdminPipeline() {
   
   const commercialFilter = document.getElementById('filterPipelineCommercial')?.value;
   
-  let opportunites = [...data.opportunites];
+  let opportunites = [...(data.opportunites || [])];
   
-  // Filter by commercial if selected
+  // Filter by commercial if selected - utiliser String() pour la comparaison
   if (commercialFilter) {
-    opportunites = opportunites.filter(o => o.ownerId === parseInt(commercialFilter));
+    opportunites = opportunites.filter(o => String(o.ownerId) === String(commercialFilter));
   }
+  
+  console.log('📋 Opportunités après filtre:', opportunites.length);
   
   // Filter only active opportunities (not won/lost)
   const activeOpps = opportunites.filter(o => {
@@ -11036,10 +11054,15 @@ function renderAdminPipeline() {
     : 0;
   
   // Update stats
-  document.getElementById('adminPipelineTotal').textContent = activeOpps.length;
-  document.getElementById('adminPipelineValue').textContent = formatCurrency(pipelineValue);
-  document.getElementById('adminPipelineWon').textContent = formatCurrency(wonThisMonth);
-  document.getElementById('adminPipelineAvgProba').textContent = avgProba + '%';
+  const totalEl = document.getElementById('adminPipelineTotal');
+  const valueEl = document.getElementById('adminPipelineValue');
+  const wonEl = document.getElementById('adminPipelineWon');
+  const avgEl = document.getElementById('adminPipelineAvgProba');
+  
+  if (totalEl) totalEl.textContent = activeOpps.length;
+  if (valueEl) valueEl.textContent = formatCurrency(pipelineValue);
+  if (wonEl) wonEl.textContent = formatCurrency(wonThisMonth);
+  if (avgEl) avgEl.textContent = avgProba + '%';
   
   // Generate color legend
   renderCommercialLegend();
@@ -11049,13 +11072,15 @@ function renderAdminPipeline() {
   
   // Render table by user
   renderAdminPipelineByUser(opportunites);
+  
+  console.log('✅ renderAdminPipeline terminé');
 }
 
 function renderCommercialLegend() {
   const legend = document.getElementById('commercialLegend');
   if (!legend) return;
   
-  const commercials = data.users.filter(u => u.role === 'commercial' && u.isActive);
+  const commercials = (data.users || []).filter(u => u.role === 'commercial' || u.role === 'admin');
   
   legend.innerHTML = commercials.map(c => {
     const colors = getCommercialColor(c.id);
@@ -11153,15 +11178,15 @@ function renderAdminPipelineCard(opp, stage) {
 
 function renderAdminPipelineByUser(allOpportunites) {
   const container = document.getElementById('adminPipelineByUserTable');
-  const users = data.users.filter(u => u.role === 'commercial' && u.isActive);
+  const users = (data.users || []).filter(u => u.role === 'commercial' || u.role === 'admin');
   
   if (users.length === 0) {
-    container.innerHTML = '<tr><td colspan="8" class="text-muted" style="text-align: center; padding: 2rem;">Aucun commercial</td></tr>';
+    container.innerHTML = '<tr><td colspan="10" class="text-muted" style="text-align: center; padding: 2rem;">Aucun commercial</td></tr>';
     return;
   }
   
   // Define stages for columns
-  const stageColumns = ['prospection', 'qualification', 'proposition', 'negociation', 'closing'];
+  const stageColumns = ['lead', 'prospection', 'qualification', 'decouverte', 'proposition', 'negociation', 'closing'];
   
   container.innerHTML = users.map(u => {
     const userId = String(u.id);
@@ -11537,7 +11562,7 @@ function renderAdminEntreprises() {
   const container = document.getElementById('adminEntreprisesTable');
   
   if (entreprises.length === 0) {
-    container.innerHTML = '<tr><td colspan="8" class="text-muted" style="text-align: center; padding: 2rem;">Aucune entreprise</td></tr>';
+    container.innerHTML = '<tr><td colspan="10" class="text-muted" style="text-align: center; padding: 2rem;">Aucune entreprise</td></tr>';
     return;
   }
   
@@ -11821,7 +11846,7 @@ function renderAdminCommandes() {
   const container = document.getElementById('adminCommandesTable');
   
   if (orders.length === 0) {
-    container.innerHTML = '<tr><td colspan="8" class="text-muted" style="text-align: center; padding: 2rem;">Aucun bon de commande</td></tr>';
+    container.innerHTML = '<tr><td colspan="10" class="text-muted" style="text-align: center; padding: 2rem;">Aucun bon de commande</td></tr>';
     return;
   }
   
@@ -14424,7 +14449,7 @@ function renderAppels() {
   const container = document.getElementById('appelsTable');
   
   if (appelsList.length === 0) {
-    container.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-state-icon">📞</div><h3 class="empty-state-title">Aucun appel</h3></div></td></tr>`;
+    container.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-state-icon">📞</div><h3 class="empty-state-title">Aucun appel</h3></div></td></tr>`;
     return;
   }
   
