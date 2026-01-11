@@ -47,8 +47,9 @@
         const crudActions = ['createUser', 'updateUser', 'createEntreprise', 'updateEntreprise', 
                             'createContact', 'updateContact', 'createOpportunite', 'updateOpportunite',
                             'createProduit', 'updateProduit', 'createPack', 'updatePack',
-                            'createCommande', 'updateCommande', 'createEmail', 'createRdv', 'updateRdv',
-                            'createAppel', 'createTache', 'updateTache', 'sendMessage'];
+                            'createCommande', 'updateCommande', 'createEmail', 'updateEmail', 
+                            'createRdv', 'updateRdv', 'createAppel', 'updateAppel',
+                            'createTache', 'updateTache', 'sendMessage'];
         
         if (crudActions.includes(action)) {
           // Extraire l'id s'il existe et l'envoyer séparément
@@ -75,9 +76,10 @@
         
         const url = `${this.baseUrl}?${params.toString()}`;
         
-        if (API_CONFIG.DEBUG) {
-          console.log('🔗 API Request:', action, url.substring(0, 200) + '...');
-        }
+        // Toujours afficher les logs pour le debug
+        console.log('🔗 API Request:', action);
+        console.log('📤 Data envoyée:', data);
+        console.log('🌐 URL:', url.substring(0, 300));
         
         // Utiliser GET simple sans headers personnalisés pour éviter CORS preflight
         const response = await fetch(url, {
@@ -85,9 +87,7 @@
           redirect: 'follow'
         });
         
-        if (API_CONFIG.DEBUG) {
-          console.log('📡 Response status:', response.status, response.statusText);
-        }
+        console.log('📡 Response status:', response.status, response.statusText);
         
         const text = await response.text();
         
@@ -6961,9 +6961,14 @@ async function saveEntreprise(e) {
 // Nouvelle fonction pour sauvegarder entreprise + contact principal
 async function saveEntrepriseWithContact(e) {
   e.preventDefault();
+  console.log('🏢 saveEntrepriseWithContact appelée');
+  console.log('📋 USE_GOOGLE_SHEETS_API:', USE_GOOGLE_SHEETS_API);
+  
   const form = e.target;
   const entrepriseId = form.dataset.id || null;
   const contactId = form.contactId?.value || null;
+  
+  console.log('📋 entrepriseId:', entrepriseId, 'contactId:', contactId);
   
   // Préparer les données de l'entreprise
   const entrepriseData = {
@@ -6980,6 +6985,8 @@ async function saveEntrepriseWithContact(e) {
     postalCode: form.postalCode?.value.trim() || '',
     country: 'France'
   };
+  
+  console.log('📤 entrepriseData:', entrepriseData);
   
   // Créer le nom du contact pour le champ entreprise.contact
   const contactFullName = [form.contactFirstName?.value.trim(), form.contactLastName?.value.trim()].filter(Boolean).join(' ');
@@ -11909,11 +11916,25 @@ function closeModalOverlay(e) {
 
 // Fonctions pour le modal principal (Actions: Email, RDV, Appels, Tâches)
 function openMainModal() {
-  document.getElementById('modalOverlay').classList.add('active');
+  console.log('🔓 openMainModal appelée');
+  const modal = document.getElementById('modalOverlay');
+  if (modal) {
+    modal.classList.add('active');
+    console.log('✅ Modal ouvert');
+  } else {
+    console.error('❌ modalOverlay non trouvé');
+  }
 }
 
 function closeMainModal() {
-  document.getElementById('modalOverlay').classList.remove('active');
+  console.log('🔒 closeMainModal appelée');
+  const modal = document.getElementById('modalOverlay');
+  if (modal) {
+    modal.classList.remove('active');
+    console.log('✅ Modal fermé');
+  } else {
+    console.error('❌ modalOverlay non trouvé');
+  }
 }
 
 function getEntrepriseForm(id) {
@@ -13671,8 +13692,10 @@ function filterEmails(filter, btn) {
 }
 
 function openNewEmailModal() {
-  const entrepriseOptions = data.entreprises.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
-  const contactOptions = data.contacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName} - ${c.email}</option>`).join('');
+  console.log('📧 openNewEmailModal appelée');
+  try {
+    const entrepriseOptions = data.entreprises.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+    const contactOptions = data.contacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName} - ${c.email}</option>`).join('');
   
   document.getElementById('modalTitle').textContent = '✉️ Nouveau message';
   document.getElementById('modalBody').innerHTML = `
@@ -13714,6 +13737,10 @@ function openNewEmailModal() {
     </form>
   `;
   openMainModal();
+  } catch (error) {
+    console.error('❌ Erreur openNewEmailModal:', error);
+    showToast('Erreur', 'Impossible d\'ouvrir le formulaire: ' + error.message, 'error');
+  }
 }
 
 function updateEmailContacts() {
