@@ -3967,9 +3967,24 @@
         </div>
       </div>
       <div class="top-bar-right">
-        <button class="top-bar-btn" onclick="syncFromGoogleSheets()" title="🔄 Synchroniser avec Google Sheets" style="position: relative;">
-          🔄
-        </button>
+        <div class="sync-menu-container" style="position: relative;">
+          <button class="top-bar-btn" onclick="toggleSyncMenu()" title="Synchronisation Google Sheets" id="syncBtn">
+            🔄
+          </button>
+          <div id="syncMenu" style="display: none; position: absolute; top: 100%; right: 0; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 8px; min-width: 200px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000;">
+            <button class="btn btn-primary btn-sm" onclick="syncFromGoogleSheets(); toggleSyncMenu();" style="width: 100%; margin-bottom: 8px;">
+              🔄 Synchroniser maintenant
+            </button>
+            <button class="btn btn-sm" onclick="testAPI(); toggleSyncMenu();" style="width: 100%; margin-bottom: 8px;">
+              🧪 Tester la connexion API
+            </button>
+            <div style="font-size: 11px; color: var(--text-muted); padding: 8px 0; border-top: 1px solid var(--border-color);">
+              <div>Mode: <strong id="apiModeIndicator">-</strong></div>
+              <div>Entreprises: <span id="syncCountEntr">-</span></div>
+              <div>Opportunités: <span id="syncCountOpp">-</span></div>
+            </div>
+          </div>
+        </div>
         <button class="top-bar-btn" onclick="toggleTheme()" title="Changer le thème">
           <span id="themeIcon">🌙</span>
         </button>
@@ -6377,7 +6392,11 @@ async function handleLogin(e) {
   const username = document.getElementById('loginUsername').value.trim();
   const password = document.getElementById('loginPassword').value;
   
-  // Désactiver le bouton pendant la connexion
+  console.log('🔐 ========================================');
+  console.log('🔐 CONNEXION - DÉBUT');
+  console.log('🔐 ========================================');
+  console.log('👤 Username:', username);
+  
   const submitBtn = e.target.querySelector('button[type="submit"]');
   const originalText = submitBtn.innerHTML;
   submitBtn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;"><svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity="0.3"></circle><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Connexion...</span>';
@@ -6385,101 +6404,101 @@ async function handleLogin(e) {
 
   // Tester la connexion API si pas encore fait
   if (!API_CONNECTION_TESTED) {
+    console.log('🔍 Test de connexion API...');
     await testAPIConnection();
   }
+  
+  console.log('🌐 Mode API:', USE_GOOGLE_SHEETS_API ? 'ACTIVÉ' : 'DÉSACTIVÉ (localStorage)');
 
   if (USE_GOOGLE_SHEETS_API) {
-    // Mode API
     try {
-      console.log('🔐 Tentative de connexion API avec:', username);
+      console.log('📡 Envoi de la requête login...');
       const result = await api.login(username, password);
       console.log('📋 Résultat login:', result);
       
-      if (result.success) {
+      if (result.success && result.data) {
         currentUser = result.data.user;
         api.token = result.data.token || '';
         
-        // Sauvegarder en localStorage
+        console.log('✅ Connexion réussie!');
+        console.log('👤 User:', currentUser);
+        console.log('🎫 Token:', api.token ? 'Présent' : 'ABSENT!');
+        
         localStorage.setItem(API_CONFIG.TOKEN_KEY, api.token);
         localStorage.setItem(API_CONFIG.USER_KEY, JSON.stringify(currentUser));
         
-        console.log('✅ Utilisateur connecté:', currentUser);
+        showLoadingOverlay('Chargement des données...');
         
-        // IMPORTANT: Charger les données depuis Google Sheets
-        showLoadingOverlay('Chargement des données depuis Google Sheets...');
+        // Utiliser Promise.allSettled pour ne pas bloquer
+        console.log('📥 Chargement des données...');
+        const results = await Promise.allSettled([
+          api.getEntreprises(),
+          api.getContacts(),
+          api.getOpportunites(),
+          api.getProduits(),
+          api.getPacks(),
+          api.getEmails(),
+          api.getRdv(),
+          api.getAppels(),
+          api.getTaches(),
+          currentUser?.role === 'admin' ? api.getUsers() : Promise.resolve({ success: true, data: [] })
+        ]);
         
-        try {
-          console.log('📥 Début du chargement des données...');
-          
-          const [entreprisesRes, contactsRes, opportunitesRes, produitsRes, packsRes, 
-                 emailsRes, rdvRes, appelsRes, tachesRes, usersRes] = await Promise.all([
-            api.getEntreprises(),
-            api.getContacts(),
-            api.getOpportunites(),
-            api.getProduits(),
-            api.getPacks(),
-            api.getEmails(),
-            api.getRdv(),
-            api.getAppels(),
-            api.getTaches(),
-            currentUser?.role === 'admin' ? api.getUsers() : Promise.resolve({ success: true, data: [] })
-          ]);
-          
-          // Mettre à jour les données
-          data.entreprises = entreprisesRes.success ? (entreprisesRes.data || []) : [];
-          data.contacts = contactsRes.success ? (contactsRes.data || []) : [];
-          data.opportunites = opportunitesRes.success ? (opportunitesRes.data || []) : [];
-          data.emails = emailsRes.success ? (emailsRes.data || []) : [];
-          data.rdv = rdvRes.success ? (rdvRes.data || []) : [];
-          data.appels = appelsRes.success ? (appelsRes.data || []) : [];
-          data.taches = tachesRes.success ? (tachesRes.data || []) : [];
-          if (usersRes.success && usersRes.data) data.users = usersRes.data;
-          
-          // Log des données chargées
-          console.log('📊 Données chargées depuis Google Sheets:');
-          console.log('  - Entreprises:', data.entreprises.length);
-          console.log('  - Contacts:', data.contacts.length);
-          console.log('  - Opportunités:', data.opportunites.length);
-          console.log('  - RDV:', data.rdv.length);
-          console.log('  - Appels:', data.appels.length);
-          console.log('  - Tâches:', data.taches.length);
-          console.log('  - Emails:', data.emails.length);
-          
-          hideLoadingOverlay();
-          
-        } catch (loadError) {
-          console.error('❌ Erreur chargement données:', loadError);
-          hideLoadingOverlay();
+        const getValue = (r, name) => {
+          if (r.status === 'fulfilled' && r.value.success) {
+            console.log('✅', name + ':', r.value.data?.length || 0);
+            return r.value.data || [];
+          } else {
+            console.warn('⚠️', name + ': ÉCHEC', r.status === 'rejected' ? r.reason : r.value?.message);
+            return [];
+          }
+        };
+        
+        data.entreprises = getValue(results[0], 'Entreprises');
+        data.contacts = getValue(results[1], 'Contacts');
+        data.opportunites = getValue(results[2], 'Opportunités');
+        data.produits = getValue(results[3], 'Produits');
+        data.packs = getValue(results[4], 'Packs');
+        data.emails = getValue(results[5], 'Emails');
+        data.rdv = getValue(results[6], 'RDV');
+        data.appels = getValue(results[7], 'Appels');
+        data.taches = getValue(results[8], 'Tâches');
+        if (results[9].status === 'fulfilled' && results[9].value.success) {
+          data.users = results[9].value.data || [];
         }
         
+        hideLoadingOverlay();
         showApp();
         
-        const totalItems = (data.entreprises?.length || 0) + (data.contacts?.length || 0) + 
-                           (data.opportunites?.length || 0);
-        showToast('Connexion réussie', `Bienvenue ${currentUser.firstName} ! ${totalItems} éléments chargés.`, 'success');
+        const total = (data.entreprises?.length || 0) + (data.contacts?.length || 0) + 
+                      (data.opportunites?.length || 0);
+        showToast('Bienvenue', currentUser.firstName + ' - ' + total + ' éléments chargés', 'success');
         
       } else {
         console.warn('⚠️ Échec connexion:', result.message);
         showToast('Erreur', result.message || 'Identifiants incorrects', 'error');
       }
     } catch (error) {
-      console.error('❌ Erreur API, basculement en mode hors-ligne:', error);
+      console.error('❌ Erreur connexion:', error);
       USE_GOOGLE_SHEETS_API = false;
-      showToast('Mode hors-ligne', 'API non accessible. Utilisation du stockage local.', 'warning');
-      // Réessayer en mode localStorage
+      showToast('Mode hors-ligne', 'API non accessible', 'warning');
       await loadData();
       await handleLoginLocalStorage(username, password, submitBtn, originalText);
       return;
     }
   } else {
-    // Mode localStorage
     await handleLoginLocalStorage(username, password, submitBtn, originalText);
     return;
   }
   
   submitBtn.innerHTML = originalText;
   submitBtn.disabled = false;
+  
+  console.log('🔐 ========================================');
+  console.log('🔐 CONNEXION - FIN');
+  console.log('🔐 ========================================');
 }
+
 
 async function handleLoginLocalStorage(username, password, submitBtn, originalText) {
   console.log('🔐 Connexion en mode localStorage avec:', username);
@@ -16588,71 +16607,189 @@ async function syncFromGoogleSheets() {
     return;
   }
   
-  console.log('🔄 Synchronisation depuis Google Sheets...');
+  console.log('🔄 ========================================');
+  console.log('🔄 SYNCHRONISATION GOOGLE SHEETS - DÉBUT');
+  console.log('🔄 ========================================');
+  console.log('👤 Utilisateur:', currentUser?.username, '- Role:', currentUser?.role);
+  console.log('🔗 API URL:', API_CONFIG.API_URL);
+  console.log('🎫 Token:', api.token ? 'Présent (' + api.token.substring(0, 20) + '...)' : 'ABSENT!');
+  
   showLoadingOverlay('Synchronisation en cours...');
   
   try {
     // Forcer le mode API
     USE_GOOGLE_SHEETS_API = true;
     
-    const [entreprisesRes, contactsRes, opportunitesRes, produitsRes, packsRes, 
-           emailsRes, rdvRes, appelsRes, tachesRes, usersRes] = await Promise.all([
-      api.getEntreprises(),
-      api.getContacts(),
-      api.getOpportunites(),
-      api.getProduits(),
-      api.getPacks(),
-      api.getEmails(),
-      api.getRdv(),
-      api.getAppels(),
-      api.getTaches(),
-      currentUser?.role === 'admin' ? api.getUsers() : Promise.resolve({ success: true, data: [] })
+    // Utiliser Promise.allSettled pour ne pas bloquer si une requête échoue
+    console.log('📡 Envoi des requêtes API...');
+    
+    const results = await Promise.allSettled([
+      api.getEntreprises().then(r => { console.log('✅ Entreprises:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
+      api.getContacts().then(r => { console.log('✅ Contacts:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
+      api.getOpportunites().then(r => { console.log('✅ Opportunités:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
+      api.getProduits().then(r => { console.log('✅ Produits:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
+      api.getPacks().then(r => { console.log('✅ Packs:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
+      api.getEmails().then(r => { console.log('✅ Emails:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
+      api.getRdv().then(r => { console.log('✅ RDV:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
+      api.getAppels().then(r => { console.log('✅ Appels:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
+      api.getTaches().then(r => { console.log('✅ Tâches:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
+      currentUser?.role === 'admin' ? api.getUsers().then(r => { console.log('✅ Users:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }) : Promise.resolve({ success: true, data: [] })
     ]);
     
-    // Mettre à jour les données
-    if (entreprisesRes.success) data.entreprises = entreprisesRes.data || [];
-    if (contactsRes.success) data.contacts = contactsRes.data || [];
-    if (opportunitesRes.success) data.opportunites = opportunitesRes.data || [];
-    if (emailsRes.success) data.emails = emailsRes.data || [];
-    if (rdvRes.success) data.rdv = rdvRes.data || [];
-    if (appelsRes.success) data.appels = appelsRes.data || [];
-    if (tachesRes.success) data.taches = tachesRes.data || [];
-    if (usersRes.success && usersRes.data) data.users = usersRes.data;
+    console.log('📊 Résultats bruts:', results.map(r => r.status));
     
-    // Log
-    console.log('📊 Données synchronisées:');
-    console.log('  - Entreprises:', data.entreprises.length);
-    console.log('  - Contacts:', data.contacts.length);
-    console.log('  - Opportunités:', data.opportunites.length);
-    console.log('  - RDV:', data.rdv.length);
-    console.log('  - Appels:', data.appels.length);
-    console.log('  - Tâches:', data.taches.length);
+    // Extraire les résultats
+    const getValue = (r) => r.status === 'fulfilled' ? r.value : { success: false, data: [] };
+    
+    const [entreprisesRes, contactsRes, opportunitesRes, produitsRes, packsRes, 
+           emailsRes, rdvRes, appelsRes, tachesRes, usersRes] = results.map(getValue);
+    
+    // Log détaillé des résultats
+    console.log('📋 Détail des réponses:');
+    console.log('  Entreprises:', entreprisesRes);
+    console.log('  Opportunités:', opportunitesRes);
+    
+    // Mettre à jour les données
+    if (entreprisesRes.success && entreprisesRes.data) {
+      data.entreprises = entreprisesRes.data;
+      console.log('✅ Entreprises chargées:', data.entreprises.length);
+    } else {
+      console.warn('⚠️ Entreprises: échec ou données vides');
+    }
+    
+    if (contactsRes.success && contactsRes.data) {
+      data.contacts = contactsRes.data;
+    }
+    
+    if (opportunitesRes.success && opportunitesRes.data) {
+      data.opportunites = opportunitesRes.data;
+      console.log('✅ Opportunités chargées:', data.opportunites.length);
+    } else {
+      console.warn('⚠️ Opportunités: échec ou données vides', opportunitesRes);
+    }
+    
+    if (emailsRes.success && emailsRes.data) data.emails = emailsRes.data;
+    if (rdvRes.success && rdvRes.data) data.rdv = rdvRes.data;
+    if (appelsRes.success && appelsRes.data) data.appels = appelsRes.data;
+    if (tachesRes.success && tachesRes.data) data.taches = tachesRes.data;
+    if (usersRes.success && usersRes.data) data.users = usersRes.data;
     
     hideLoadingOverlay();
     
+    // Afficher le résumé
+    const summary = {
+      entreprises: data.entreprises?.length || 0,
+      contacts: data.contacts?.length || 0,
+      opportunites: data.opportunites?.length || 0,
+      rdv: data.rdv?.length || 0,
+      appels: data.appels?.length || 0,
+      taches: data.taches?.length || 0
+    };
+    
+    console.log('🔄 ========================================');
+    console.log('📊 RÉSUMÉ FINAL:', summary);
+    console.log('🔄 ========================================');
+    
     // Rafraîchir la page actuelle
     if (typeof showPage === 'function' && currentPage) {
-      showPage(currentPage);
-    }
-    
-    const total = (data.entreprises?.length || 0) + (data.contacts?.length || 0) + 
-                  (data.opportunites?.length || 0) + (data.rdv?.length || 0) +
-                  (data.appels?.length || 0) + (data.taches?.length || 0);
-    
-    // Rafraîchir la page actuelle
-    if (currentPage) {
       console.log('🔄 Rafraîchissement de la page:', currentPage);
       showPage(currentPage);
     }
     
-    showToast('Synchronisé', `${total} éléments chargés depuis Google Sheets`, 'success');
+    const total = Object.values(summary).reduce((a, b) => a + b, 0);
+    
+    if (total > 0) {
+      showToast('Synchronisé', total + ' éléments chargés', 'success');
+    } else {
+      showToast('Attention', 'Aucune donnée chargée. Vérifiez Google Sheets.', 'warning');
+    }
     
   } catch (error) {
     hideLoadingOverlay();
-    console.error('❌ Erreur sync:', error);
+    console.error('❌ ERREUR SYNC:', error);
     showToast('Erreur', 'Erreur de synchronisation: ' + error.message, 'error');
   }
 }
+
+
+
+
+// Fonction pour tester la connexion API
+async function testAPIConnectionDetailed() {
+  console.log('🧪 ========================================');
+  console.log('🧪 TEST DE CONNEXION API');
+  console.log('🧪 ========================================');
+  
+  const url = API_CONFIG.API_URL;
+  console.log('🔗 URL API:', url);
+  
+  try {
+    // Test 1: Simple ping
+    console.log('📡 Test 1: Ping API...');
+    const testUrl = url + '?action=getSettings';
+    console.log('🌐 URL de test:', testUrl);
+    
+    const response = await fetch(testUrl, {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    console.log('📡 Status:', response.status, response.statusText);
+    
+    const text = await response.text();
+    console.log('📄 Réponse brute:', text.substring(0, 500));
+    
+    try {
+      const json = JSON.parse(text);
+      console.log('✅ JSON valide:', json);
+      
+      if (json.success) {
+        showToast('Test réussi', 'API accessible', 'success');
+      } else {
+        showToast('Test échoué', json.message || 'Erreur API', 'error');
+      }
+    } catch (e) {
+      console.error('❌ JSON invalide:', e);
+      showToast('Erreur', 'Réponse API invalide', 'error');
+    }
+    
+  } catch (error) {
+    console.error('❌ Erreur réseau:', error);
+    showToast('Erreur', 'Impossible de contacter l\'API: ' + error.message, 'error');
+  }
+  
+  console.log('🧪 ========================================');
+}
+
+// Exposer globalement
+window.testAPI = testAPIConnectionDetailed;
+
+
+
+function toggleSyncMenu() {
+  const menu = document.getElementById('syncMenu');
+  if (menu) {
+    const isVisible = menu.style.display !== 'none';
+    menu.style.display = isVisible ? 'none' : 'block';
+    
+    // Mettre à jour les infos
+    if (!isVisible) {
+      document.getElementById('apiModeIndicator').textContent = USE_GOOGLE_SHEETS_API ? 'API Google Sheets' : 'Local (hors-ligne)';
+      document.getElementById('syncCountEntr').textContent = data.entreprises?.length || 0;
+      document.getElementById('syncCountOpp').textContent = data.opportunites?.length || 0;
+    }
+  }
+}
+
+// Fermer le menu si on clique ailleurs
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('syncMenu');
+  const btn = document.getElementById('syncBtn');
+  if (menu && btn && !menu.contains(e.target) && !btn.contains(e.target)) {
+    menu.style.display = 'none';
+  }
+});
+
 
 </script>
 
