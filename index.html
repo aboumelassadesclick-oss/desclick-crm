@@ -6865,9 +6865,9 @@ function renderEntreprises() {
         <td>${e.city || '-'}</td>
         <td>${owner?.firstName || '-'}</td>
         <td class="actions-cell">
-          <button class="btn btn-icon sm" onclick="openModal('entreprise', ${e.id})" title="Modifier">✏️</button>
-          <button class="btn btn-icon sm" onclick="viewEntreprise(${e.id})" title="Voir">👁️</button>
-          <button class="btn btn-icon sm btn-danger" onclick="deleteEntreprise(${e.id})" title="Supprimer">🗑️</button>
+          <button class="btn btn-icon sm" onclick="viewEntreprise('${e.id}')" title="Voir">👁️</button>
+          <button class="btn btn-icon sm" onclick="openModal('entreprise', '${e.id}')" title="Modifier">✏️</button>
+          <button class="btn btn-icon sm btn-danger" onclick="deleteEntreprise('${e.id}')" title="Supprimer">🗑️</button>
         </td>
       </tr>
     `;
@@ -7235,8 +7235,9 @@ function renderContacts() {
         <td>${c.function || '-'}</td>
         <td><span class="badge badge-${c.contactType === 'client' ? 'success' : c.contactType === 'prospect' ? 'warning' : 'default'}">${contactType?.name || '-'}</span></td>
         <td class="actions-cell">
-          <button class="btn btn-icon sm" onclick="openModal('contact', ${c.id})" title="Modifier">✏️</button>
-          <button class="btn btn-icon sm btn-danger" onclick="deleteContact(${c.id})" title="Supprimer">🗑️</button>
+          <button class="btn btn-icon sm" onclick="viewContact('${c.id}')" title="Voir">👁️</button>
+          <button class="btn btn-icon sm" onclick="openModal('contact', '${c.id}')" title="Modifier">✏️</button>
+          <button class="btn btn-icon sm btn-danger" onclick="deleteContact('${c.id}')" title="Supprimer">🗑️</button>
         </td>
       </tr>
     `;
@@ -7598,9 +7599,9 @@ function renderPipelineCard(opp, stage) {
   const entreprise = data.entreprises.find(e => e.id === opp.entrepriseId);
   return `
     <div class="pipeline-card" draggable="true" 
-         ondragstart="handleDragStart(event, ${opp.id})"
+         ondragstart="handleDragStart(event, '${opp.id}')"
          ondragend="handleDragEnd(event)"
-         onclick="openModal('opportunite', ${opp.id})">
+         onclick="openModal('opportunite', '${opp.id}')">
       <div class="pipeline-card-header">
         <div class="pipeline-card-title">${opp.name}</div>
       </div>
@@ -13663,9 +13664,10 @@ function renderEmails() {
         <td>${statutBadge}</td>
         <td>
           <div class="btn-group">
-            <button class="btn btn-sm" onclick="viewEmail(${e.id})" title="Voir">👁️</button>
-            ${e.statut === 'brouillon' ? `<button class="btn btn-sm btn-primary" onclick="sendEmail(${e.id})" title="Envoyer">📤</button>` : ''}
-            <button class="btn btn-sm btn-danger" onclick="deleteEmail(${e.id})" title="Supprimer">🗑️</button>
+            <button class="btn btn-sm" onclick="viewEmail('${e.id}')" title="Voir">👁️</button>
+            <button class="btn btn-sm" onclick="openModal('email', '${e.id}')" title="Modifier">✏️</button>
+            ${e.statut === 'brouillon' ? `<button class="btn btn-sm btn-primary" onclick="sendEmail('${e.id}')" title="Envoyer">📤</button>` : ''}
+            <button class="btn btn-sm btn-danger" onclick="deleteEmail('${e.id}')" title="Supprimer">🗑️</button>
           </div>
         </td>
       </tr>
@@ -13960,7 +13962,9 @@ function renderRdv() {
             ${r.statut === 'a_confirmer' ? `<button class="btn btn-sm btn-success" onclick="confirmRdv(${r.id})" title="Confirmer">✅</button>` : ''}
             ${r.statut === 'confirme' ? `<button class="btn btn-sm btn-primary" onclick="markRdvDone(${r.id})" title="Effectué">✔️</button>` : ''}
             <button class="btn btn-sm" onclick="editRdv(${r.id})" title="Modifier">✏️</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteRdv(${r.id})" title="Supprimer">🗑️</button>
+            <button class="btn btn-sm" onclick="viewRdv('${r.id}')" title="Voir">👁️</button>
+            <button class="btn btn-sm" onclick="openModal('rdv', '${r.id}')" title="Modifier">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteRdv('${r.id}')" title="Supprimer">🗑️</button>
           </div>
         </td>
       </tr>
@@ -14277,7 +14281,9 @@ function renderAppels() {
             ${a.statut === 'planifie' ? `<button class="btn btn-sm btn-success" onclick="markAppelDone(${a.id})" title="Effectué">✅</button>` : ''}
             ${a.statut === 'manque' ? `<button class="btn btn-sm btn-warning" onclick="markAppelToCallback(${a.id})" title="À rappeler">🔄</button>` : ''}
             <button class="btn btn-sm" onclick="editAppel(${a.id})" title="Modifier">✏️</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteAppel(${a.id})" title="Supprimer">🗑️</button>
+            <button class="btn btn-sm" onclick="viewAppel('${a.id}')" title="Voir">👁️</button>
+            <button class="btn btn-sm" onclick="openModal('appel', '${a.id}')" title="Modifier">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteAppel('${a.id}')" title="Supprimer">🗑️</button>
           </div>
         </td>
       </tr>
@@ -14629,7 +14635,9 @@ function renderTaches() {
         </div>
         <div class="tache-actions">
           <button class="btn btn-sm" onclick="editTache(${t.id})" title="Modifier">✏️</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteTache(${t.id})" title="Supprimer">🗑️</button>
+          <button class="btn btn-sm" onclick="viewTache('${t.id}')" title="Voir">👁️</button>
+          <button class="btn btn-sm" onclick="openModal('tache', '${t.id}')" title="Modifier">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteTache('${t.id}')" title="Supprimer">🗑️</button>
         </div>
       </div>
     `;
@@ -14852,6 +14860,408 @@ async function deleteTache(id) {
 // =====================================================
 
 document.addEventListener('DOMContentLoaded', init);
+
+
+// =====================================================
+// CORRECTIONS v5.2
+// =====================================================
+// =====================================================
+// CORRECTIONS DESCLICK CRM v5.2
+// Fichier à insérer avant </script> final
+// =====================================================
+
+// =====================================================
+// 1. FIX PIPELINE - Comparaison d'ID uniformisée
+// =====================================================
+
+// Remplacer handleDrop pour uniformiser les comparaisons d'ID
+window.handleDropFixed = function(e, stageId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  
+  if (draggedOppId) {
+    // Toujours convertir en String pour la comparaison
+    const opp = data.opportunites.find(o => String(o.id) === String(draggedOppId));
+    if (opp) {
+      const stage = PIPELINE_STAGES.find(s => s.id === stageId);
+      
+      if (USE_GOOGLE_SHEETS_API) {
+        (async () => {
+          try {
+            const result = await api.updateOpportuniteStage(opp.id, stageId);
+            
+            if (result.success) {
+              opp.stage = stageId;
+              opp.probability = stage?.probability || opp.probability;
+              opp.updatedAt = new Date().toISOString();
+              
+              renderPipeline();
+              if (typeof renderAdminPipeline === 'function') renderAdminPipeline();
+              showToast('Déplacé', `Opportunité déplacée vers ${stage?.name}`, 'success');
+            } else {
+              showToast('Erreur', result.message || 'Erreur lors du déplacement', 'error');
+              renderPipeline();
+            }
+          } catch (error) {
+            showToast('Erreur', 'Erreur: ' + error.message, 'error');
+            renderPipeline();
+          }
+        })();
+      } else {
+        opp.stage = stageId;
+        opp.probability = stage?.probability || opp.probability;
+        opp.updatedAt = new Date().toISOString();
+        
+        logActivity('update', `${opp.name} déplacée vers ${stage?.name}`);
+        saveData();
+        renderPipeline();
+        showToast('Déplacé', `Opportunité déplacée vers ${stage?.name}`, 'success');
+      }
+    }
+  }
+  draggedOppId = null;
+};
+
+// Remplacer la fonction originale
+window.handleDrop = window.handleDropFixed;
+
+// =====================================================
+// 2. FIX ADMIN PIPELINE avec Drag & Drop
+// =====================================================
+
+window.renderAdminPipelineFixed = function() {
+  const filterCommercial = document.getElementById('filterPipelineCommercial')?.value || '';
+  
+  // Charger la liste des commerciaux
+  const commerciaux = data.users.filter(u => u.role === 'commercial');
+  const selectEl = document.getElementById('filterPipelineCommercial');
+  if (selectEl && selectEl.options.length <= 1) {
+    selectEl.innerHTML = '<option value="">Tous les commerciaux</option>' +
+      commerciaux.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName}</option>`).join('');
+  }
+  
+  let opportunites = data.opportunites || [];
+  
+  if (filterCommercial) {
+    opportunites = opportunites.filter(o => String(o.ownerId) === String(filterCommercial));
+  }
+  
+  // Stats
+  const totalValue = opportunites.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
+  const avgProbability = opportunites.length > 0 
+    ? Math.round(opportunites.reduce((sum, o) => sum + (parseInt(o.probability) || 0), 0) / opportunites.length) 
+    : 0;
+  
+  document.getElementById('adminPipelineTotal').textContent = opportunites.length;
+  document.getElementById('adminPipelineValue').textContent = formatCurrency(totalValue);
+  document.getElementById('adminPipelineAvgProba').textContent = avgProbability + '%';
+  
+  // Render Kanban avec Drag & Drop
+  renderAdminPipelineKanbanFixed(opportunites);
+  
+  // Render par commercial
+  if (typeof renderAdminPipelineByUser === 'function') {
+    renderAdminPipelineByUser(opportunites);
+  }
+};
+
+window.renderAdminPipelineKanbanFixed = function(opportunites) {
+  const container = document.getElementById('adminPipelineContainer');
+  
+  container.innerHTML = PIPELINE_STAGES.filter(s => !s.isLost).map(stage => {
+    const stageOpps = opportunites.filter(o => o.stage === stage.id);
+    const total = stageOpps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
+    
+    return `
+      <div class="pipeline-column" data-stage="${stage.id}"
+           ondragover="handleDragOver(event)" ondrop="handleDrop(event, '${stage.id}')">
+        <div class="pipeline-header">
+          <div class="pipeline-title">
+            <div class="pipeline-color" style="background: ${stage.color};"></div>
+            ${stage.name}
+            <span class="pipeline-count">${stageOpps.length}</span>
+          </div>
+          <div class="pipeline-amount">${formatCurrency(total)}</div>
+        </div>
+        <div class="pipeline-cards">
+          ${stageOpps.slice(0, 20).map(o => renderAdminPipelineCardFixed(o, stage)).join('')}
+          ${stageOpps.length > 20 ? `<div style="text-align:center;padding:10px;color:var(--text-muted);">+${stageOpps.length - 20} autres</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+};
+
+window.renderAdminPipelineCardFixed = function(opp, stage) {
+  const entreprise = data.entreprises.find(e => String(e.id) === String(opp.entrepriseId));
+  const owner = data.users.find(u => String(u.id) === String(opp.ownerId));
+  
+  return `
+    <div class="pipeline-card" draggable="true"
+         ondragstart="handleDragStart(event, '${opp.id}')"
+         ondragend="handleDragEnd(event)"
+         onclick="openModal('opportunite', '${opp.id}')">
+      <div class="pipeline-card-header">
+        <div class="pipeline-card-title">${opp.name}</div>
+      </div>
+      <div class="pipeline-card-company">${entreprise?.name || '-'}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+        👤 ${owner?.firstName || 'N/A'} ${owner?.lastName || ''}
+      </div>
+      <div class="pipeline-card-footer">
+        <div class="pipeline-card-amount">${formatCurrency(opp.amount)}</div>
+        <div class="pipeline-card-probability">
+          <div class="probability-bar">
+            <div class="probability-fill" style="width: ${opp.probability}%; background: ${stage.color};"></div>
+          </div>
+          ${opp.probability}%
+        </div>
+      </div>
+    </div>
+  `;
+};
+
+// Remplacer les fonctions
+if (typeof renderAdminPipeline !== 'undefined') {
+  window.renderAdminPipeline = window.renderAdminPipelineFixed;
+}
+if (typeof renderAdminPipelineKanban !== 'undefined') {
+  window.renderAdminPipelineKanban = window.renderAdminPipelineKanbanFixed;
+}
+if (typeof renderAdminPipelineCard !== 'undefined') {
+  window.renderAdminPipelineCard = window.renderAdminPipelineCardFixed;
+}
+
+// =====================================================
+// 3. FIX CALENDRIER - Chargement des actions
+// =====================================================
+
+window.renderCalendrierFixed = async function() {
+  // Recharger les données depuis l'API si nécessaire
+  if (USE_GOOGLE_SHEETS_API && currentUser) {
+    try {
+      const [rdvRes, appelsRes, tachesRes] = await Promise.all([
+        api.getRdv(),
+        api.getAppels(),
+        api.getTaches()
+      ]);
+      
+      if (rdvRes.success) data.rdv = rdvRes.data;
+      if (appelsRes.success) data.appels = appelsRes.data;
+      if (tachesRes.success) data.taches = tachesRes.data;
+    } catch (e) {
+      console.warn('Erreur chargement calendrier:', e);
+    }
+  }
+  
+  const year = calendarDate.getFullYear();
+  const month = calendarDate.getMonth();
+  
+  const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  document.getElementById('calendarMonthTitle').textContent = `${monthNames[month]} ${year}`;
+  
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDay = (firstDay.getDay() + 6) % 7;
+  const totalDays = lastDay.getDate();
+  const prevLastDay = new Date(year, month, 0).getDate();
+  
+  const container = document.getElementById('calendarDays');
+  container.innerHTML = '';
+  
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  
+  const userId = currentUser?.id;
+  const isAdmin = currentUser?.role === 'admin';
+  
+  // Filtrer les événements avec comparaison String
+  const myRdv = (data.rdv || []).filter(r => isAdmin || String(r.ownerId) === String(userId));
+  const myAppels = (data.appels || []).filter(a => isAdmin || String(a.ownerId) === String(userId));
+  const myTaches = (data.taches || []).filter(t => isAdmin || String(t.ownerId) === String(userId));
+  
+  // Jours du mois précédent
+  for (let i = startDay - 1; i >= 0; i--) {
+    const day = prevLastDay - i;
+    const dayEl = document.createElement('div');
+    dayEl.className = 'calendar-day other-month';
+    dayEl.innerHTML = `<div class="calendar-day-number">${day}</div>`;
+    container.appendChild(dayEl);
+  }
+  
+  // Jours du mois actuel
+  for (let day = 1; day <= totalDays; day++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const isToday = dateStr === todayStr;
+    
+    const dayEvents = [];
+    
+    myRdv.filter(r => r.date === dateStr).forEach(r => {
+      const entreprise = data.entreprises.find(e => String(e.id) === String(r.entrepriseId));
+      dayEvents.push({ type: 'rdv', icon: '🤝', title: r.objet || 'RDV', time: r.heure || '' });
+    });
+    
+    myAppels.filter(a => a.date === dateStr).forEach(a => {
+      dayEvents.push({ type: 'appel', icon: '📞', title: a.objet || 'Appel', time: a.heure || '' });
+    });
+    
+    myTaches.filter(t => t.echeance === dateStr && t.statut !== 'terminee').forEach(t => {
+      dayEvents.push({ type: 'tache', icon: '✅', title: t.titre || 'Tâche', time: '' });
+    });
+    
+    const dayEl = document.createElement('div');
+    dayEl.className = `calendar-day${isToday ? ' today' : ''}`;
+    dayEl.onclick = () => openDayDetail(dateStr);
+    
+    dayEl.innerHTML = `
+      <div class="calendar-day-number">${day}</div>
+      ${dayEvents.slice(0, 3).map(e => `
+        <div class="calendar-event ${e.type}" title="${e.title}">
+          ${e.time ? e.time + ' ' : ''}${e.title.substring(0, 12)}${e.title.length > 12 ? '...' : ''}
+        </div>
+      `).join('')}
+      ${dayEvents.length > 3 ? `<div style="font-size:10px;color:var(--text-muted);">+${dayEvents.length - 3}</div>` : ''}
+    `;
+    
+    container.appendChild(dayEl);
+  }
+  
+  // Jours du mois suivant
+  const totalCells = startDay + totalDays;
+  const remaining = 42 - totalCells;
+  for (let day = 1; day <= remaining; day++) {
+    const dayEl = document.createElement('div');
+    dayEl.className = 'calendar-day other-month';
+    dayEl.innerHTML = `<div class="calendar-day-number">${day}</div>`;
+    container.appendChild(dayEl);
+  }
+  
+  // Mettre à jour la sidebar
+  if (typeof renderTodayActions === 'function') renderTodayActions();
+  if (typeof renderUpcomingEvents === 'function') renderUpcomingEvents();
+};
+
+// Remplacer la fonction
+if (typeof renderCalendrier !== 'undefined') {
+  window.renderCalendrier = window.renderCalendrierFixed;
+}
+
+// =====================================================
+// 4. BOUTONS D'ACTIONS POUR TOUS LES TABLEAUX
+// =====================================================
+
+// Fonction utilitaire pour créer les boutons d'action
+window.createActionButtons = function(type, id, options = {}) {
+  const { canView = true, canEdit = true, canDelete = true } = options;
+  let html = '<td class="actions-cell">';
+  
+  if (canView) {
+    html += `<button class="btn btn-icon sm" onclick="view${type}('${id}')" title="Voir">👁️</button>`;
+  }
+  if (canEdit) {
+    html += `<button class="btn btn-icon sm" onclick="openModal('${type.toLowerCase()}', '${id}')" title="Modifier">✏️</button>`;
+  }
+  if (canDelete) {
+    html += `<button class="btn btn-icon sm btn-danger" onclick="delete${type}('${id}')" title="Supprimer">🗑️</button>`;
+  }
+  
+  html += '</td>';
+  return html;
+};
+
+// Fonctions de visualisation
+window.viewEntreprise = function(id) {
+  openModal('entreprise', id);
+};
+
+window.viewContact = function(id) {
+  openModal('contact', id);
+};
+
+window.viewOpportunite = function(id) {
+  openModal('opportunite', id);
+};
+
+window.viewProduit = function(id) {
+  const produit = data.produits?.find(p => String(p.id) === String(id)) || 
+                  PRODUCT_CATALOGUE?.find(p => String(p.id) === String(id));
+  if (produit) {
+    showToast('Produit', `${produit.name || produit.ref} - ${formatCurrency(produit.price)}`, 'info');
+  }
+};
+
+window.viewPack = function(id) {
+  const pack = data.packs?.find(p => String(p.id) === String(id)) ||
+               PACKS_CATALOGUE?.find(p => String(p.id) === String(id));
+  if (pack) {
+    showToast('Pack', `${pack.name || pack.ref} - ${formatCurrency(pack.price)}`, 'info');
+  }
+};
+
+window.viewCommande = function(id) {
+  const commande = data.orders?.find(c => String(c.id) === String(id));
+  if (commande) {
+    // Ouvrir ou afficher les détails
+    showToast('Commande', `${commande.orderNumber || 'BC'} - ${formatCurrency(commande.totalTTC)}`, 'info');
+  }
+};
+
+window.viewRdv = function(id) {
+  openModal('rdv', id);
+};
+
+window.viewAppel = function(id) {
+  openModal('appel', id);
+};
+
+window.viewTache = function(id) {
+  openModal('tache', id);
+};
+
+window.viewEmail = function(id) {
+  const email = data.emails?.find(e => String(e.id) === String(id));
+  if (email) {
+    showToast('Email', `${email.subject} → ${email.to}`, 'info');
+  }
+};
+
+// =====================================================
+// 5. FIX COMPARAISONS D'ID DANS TOUS LES FILTRES
+// =====================================================
+
+window.filterByOwnerFixed = function(items, ownerId) {
+  if (!ownerId) return items;
+  return items.filter(item => String(item.ownerId) === String(ownerId));
+};
+
+// Remplacer filterByOwner si elle existe
+if (typeof filterByOwner !== 'undefined') {
+  window.filterByOwner = window.filterByOwnerFixed;
+}
+
+// =====================================================
+// 6. FIX handleDragStart pour supporter les IDs string
+// =====================================================
+
+window.handleDragStartFixed = function(e, oppId) {
+  draggedOppId = String(oppId);  // Toujours stocker comme string
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+};
+
+window.handleDragStart = window.handleDragStartFixed;
+
+// =====================================================
+// 7. LOG DE CONFIRMATION
+// =====================================================
+
+console.log('✅ Corrections DesClick CRM v5.2 chargées');
+console.log('   - Pipeline drag & drop corrigé');
+console.log('   - Admin pipeline avec drag & drop');
+console.log('   - Calendrier avec chargement API');
+console.log('   - Comparaisons ID uniformisées');
+
+
 </script>
 
 </body>
