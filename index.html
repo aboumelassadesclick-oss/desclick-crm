@@ -24,7 +24,7 @@
   ===================================================== -->
   <script>
   const API_CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbzl5lv6TT-qYnfeT8AkGSwvuoDH0UqzX8zgbzDgT9R5anWUmikwj12w4cM_1Kc-9Grlrg/exec',
+    API_URL: 'https://script.google.com/macros/s/AKfycbx4T6dCRJkp2o4642HNNJqHcGdNne-QU6Qh-lvh5tmPVwtxK3etX0-Jab_13vexp6L4wA/exec',
     TOKEN_KEY: 'desclick_crm_token',
     USER_KEY: 'desclick_crm_user',
     DEBUG: true // Activer le mode debug
@@ -6904,6 +6904,7 @@ async function saveEntreprise(e) {
   if (USE_GOOGLE_SHEETS_API) {
     try {
       showLoadingOverlay('Enregistrement...');
+      console.log('📤 Envoi entreprise:', entrepriseData);
       let result;
       
       if (id) {
@@ -6912,6 +6913,7 @@ async function saveEntreprise(e) {
         result = await api.createEntreprise(entrepriseData);
       }
       
+      console.log('📥 Résultat API:', result);
       hideLoadingOverlay();
       
       if (result.success) {
@@ -6927,6 +6929,7 @@ async function saveEntreprise(e) {
       }
     } catch (error) {
       hideLoadingOverlay();
+      console.error('❌ Erreur saveEntreprise:', error);
       showToast('Erreur', 'Erreur: ' + error.message, 'error');
     }
   } else {
@@ -6956,15 +6959,14 @@ async function saveEntreprise(e) {
 }
 
 // Nouvelle fonction pour sauvegarder entreprise + contact principal
-function saveEntrepriseWithContact(e) {
+async function saveEntrepriseWithContact(e) {
   e.preventDefault();
   const form = e.target;
-  const entrepriseId = parseInt(form.dataset.id);
-  const contactId = parseInt(form.contactId?.value) || null;
+  const entrepriseId = form.dataset.id || null;
+  const contactId = form.contactId?.value || null;
   
-  // Sauvegarder l'entreprise
-  const entreprise = {
-    id: entrepriseId || ++data.lastId.entreprise,
+  // Préparer les données de l'entreprise
+  const entrepriseData = {
     name: form.name.value.trim(),
     tradeName: form.tradeName?.value.trim() || '',
     siret: form.siret?.value.trim() || '',
@@ -6976,64 +6978,137 @@ function saveEntrepriseWithContact(e) {
     address: form.address?.value.trim() || '',
     city: form.city?.value.trim() || '',
     postalCode: form.postalCode?.value.trim() || '',
-    country: 'France',
-    ownerId: currentUser.id,
-    createdAt: entrepriseId ? data.entreprises.find(ent => ent.id === entrepriseId)?.createdAt : new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    country: 'France'
   };
   
   // Créer le nom du contact pour le champ entreprise.contact
   const contactFullName = [form.contactFirstName?.value.trim(), form.contactLastName?.value.trim()].filter(Boolean).join(' ');
-  entreprise.contact = contactFullName;
+  entrepriseData.contact = contactFullName;
   
-  if (entrepriseId) {
-    const index = data.entreprises.findIndex(ent => ent.id === entrepriseId);
-    if (index >= 0) data.entreprises[index] = entreprise;
-    logActivity('update', 'Entreprise modifiée: ' + entreprise.name);
-  } else {
-    data.entreprises.push(entreprise);
-    logActivity('create', 'Nouvelle entreprise: ' + entreprise.name);
-  }
-  
-  // Sauvegarder le contact principal si des informations sont fournies
+  // Préparer les données du contact si fournies
   const hasContactInfo = form.contactFirstName?.value.trim() || form.contactLastName?.value.trim();
+  let contactData = null;
   
   if (hasContactInfo) {
-    const contact = {
-      id: contactId || ++data.lastId.contact,
+    contactData = {
       firstName: form.contactFirstName?.value.trim() || '',
       lastName: form.contactLastName?.value.trim() || '',
       civility: form.contactCivility?.value || '',
-      entrepriseId: entreprise.id,
       email: form.contactEmail?.value.trim() || '',
       phone: form.contactPhone?.value.trim() || '',
       mobile: form.contactMobile?.value.trim() || '',
-      function: form.contactFunction?.value.trim() || '',
+      functionTitle: form.contactFunction?.value.trim() || '',
       contactType: form.contactType?.value || 'prospect',
       notes: form.contactNotes?.value.trim() || '',
-      isPrimary: true,
+      isPrimary: true
+    };
+  }
+  
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      showLoadingOverlay('Enregistrement...');
+      console.log('📤 Envoi entreprise:', entrepriseData);
+      
+      let entrepriseResult;
+      if (entrepriseId) {
+        entrepriseResult = await api.updateEntreprise(entrepriseId, entrepriseData);
+      } else {
+        entrepriseResult = await api.createEntreprise(entrepriseData);
+      }
+      
+      console.log('📥 Résultat entreprise:', entrepriseResult);
+      
+      if (!entrepriseResult.success) {
+        hideLoadingOverlay();
+        showToast('Erreur', entrepriseResult.message || 'Erreur lors de l\'enregistrement', 'error');
+        return;
+      }
+      
+      const newEntrepriseId = entrepriseResult.data?.id || entrepriseId;
+      
+      // Sauvegarder le contact si fourni
+      if (contactData && newEntrepriseId) {
+        contactData.entrepriseId = newEntrepriseId;
+        console.log('📤 Envoi contact:', contactData);
+        
+        let contactResult;
+        if (contactId) {
+          contactResult = await api.updateContact(contactId, contactData);
+        } else {
+          contactResult = await api.createContact(contactData);
+        }
+        console.log('📥 Résultat contact:', contactResult);
+      }
+      
+      // Recharger les données
+      const [entreprisesRes, contactsRes] = await Promise.all([
+        api.getEntreprises(),
+        api.getContacts()
+      ]);
+      
+      if (entreprisesRes.success) data.entreprises = entreprisesRes.data;
+      if (contactsRes.success) data.contacts = contactsRes.data;
+      
+      hideLoadingOverlay();
+      closeModal();
+      renderEntreprises();
+      renderContacts();
+      showToast('Succès', entrepriseId ? 'Entreprise et contact modifiés' : 'Entreprise et contact créés', 'success');
+      
+    } catch (error) {
+      hideLoadingOverlay();
+      console.error('❌ Erreur:', error);
+      showToast('Erreur', 'Erreur: ' + error.message, 'error');
+    }
+  } else {
+    // Mode localStorage
+    const entreprise = {
+      id: parseInt(entrepriseId) || ++data.lastId.entreprise,
+      ...entrepriseData,
       ownerId: currentUser.id,
-      createdAt: contactId ? data.contacts.find(c => c.id === contactId)?.createdAt : new Date().toISOString(),
+      createdAt: entrepriseId ? data.entreprises.find(ent => ent.id === parseInt(entrepriseId))?.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     
-    if (contactId) {
-      const index = data.contacts.findIndex(c => c.id === contactId);
-      if (index >= 0) data.contacts[index] = contact;
+    if (entrepriseId) {
+      const index = data.entreprises.findIndex(ent => ent.id === parseInt(entrepriseId));
+      if (index >= 0) data.entreprises[index] = entreprise;
+      logActivity('update', 'Entreprise modifiée: ' + entreprise.name);
     } else {
-      // Marquer les autres contacts de cette entreprise comme non-principaux
-      data.contacts.forEach(c => {
-        if (c.entrepriseId === entreprise.id) c.isPrimary = false;
-      });
-      data.contacts.push(contact);
+      data.entreprises.push(entreprise);
+      logActivity('create', 'Nouvelle entreprise: ' + entreprise.name);
     }
+    
+    // Sauvegarder le contact principal si des informations sont fournies
+    if (hasContactInfo) {
+      const contact = {
+        id: parseInt(contactId) || ++data.lastId.contact,
+        ...contactData,
+        entrepriseId: entreprise.id,
+        function: contactData.functionTitle,
+        ownerId: currentUser.id,
+        createdAt: contactId ? data.contacts.find(c => c.id === parseInt(contactId))?.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      if (contactId) {
+        const index = data.contacts.findIndex(c => c.id === parseInt(contactId));
+        if (index >= 0) data.contacts[index] = contact;
+      } else {
+        // Marquer les autres contacts de cette entreprise comme non-principaux
+        data.contacts.forEach(c => {
+          if (c.entrepriseId === entreprise.id) c.isPrimary = false;
+        });
+        data.contacts.push(contact);
+      }
+    }
+    
+    saveData();
+    closeModal();
+    renderEntreprises();
+    renderContacts();
+    showToast('Succès', entrepriseId ? 'Entreprise et contact modifiés' : 'Entreprise et contact créés', 'success');
   }
-  
-  saveData();
-  closeModal();
-  renderEntreprises();
-  renderContacts();
-  showToast('Succès', entrepriseId ? 'Entreprise et contact modifiés' : 'Entreprise et contact créés', 'success');
 }
 
 function deleteEntreprise(id) {
@@ -7945,22 +8020,57 @@ function editProduct(id, isCatalogue) {
 }
 
 // Delete product (catalogue or custom)
-function deleteProduct(id, isCatalogue) {
+async function deleteProduct(id, isCatalogue) {
   if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) return;
   
-  if (isCatalogue) {
-    const catIndex = parseInt(id.replace('cat_', ''));
-    PRODUCT_CATALOGUE.splice(catIndex, 1);
-    // Save to localStorage to persist catalogue changes
-    localStorage.setItem('crm_product_catalogue', JSON.stringify(PRODUCT_CATALOGUE));
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      // Extraire l'ID réel si c'est un index de catalogue
+      const realId = isCatalogue ? PRODUCT_CATALOGUE[parseInt(id.replace('cat_', ''))]?.id : id;
+      
+      if (realId) {
+        const result = await api.deleteProduit(realId);
+        if (result.success) {
+          const produitsRes = await api.getProduits();
+          if (produitsRes.success) {
+            PRODUCT_CATALOGUE.length = 0;
+            produitsRes.data.forEach(p => {
+              PRODUCT_CATALOGUE.push({
+                ref: p.reference,
+                name: p.name,
+                model: p.model || '',
+                type: p.type || 'produit',
+                category: p.category || 'Matériel',
+                price: parseFloat(p.price) || 0,
+                tva: parseFloat(p.tva) || 20,
+                isActive: p.isActive !== false,
+                id: p.id
+              });
+            });
+          }
+          renderProduits();
+          showToast('Supprimé', 'Produit supprimé', 'success');
+        } else {
+          showToast('Erreur', result.message || 'Erreur', 'error');
+        }
+      }
+    } catch (error) {
+      showToast('Erreur', error.message, 'error');
+    }
   } else {
-    const index = data.produits.findIndex(p => p.id === parseInt(id));
-    if (index >= 0) data.produits.splice(index, 1);
-    saveData();
+    if (isCatalogue) {
+      const catIndex = parseInt(id.replace('cat_', ''));
+      PRODUCT_CATALOGUE.splice(catIndex, 1);
+      localStorage.setItem('crm_product_catalogue', JSON.stringify(PRODUCT_CATALOGUE));
+    } else {
+      const index = data.produits.findIndex(p => p.id === parseInt(id));
+      if (index >= 0) data.produits.splice(index, 1);
+      saveData();
+    }
+    
+    renderProduits();
+    showToast('Supprimé', 'Produit supprimé', 'success');
   }
-  
-  renderProduits();
-  showToast('Supprimé', 'Produit supprimé', 'success');
 }
 
 function getCategoryBadge(category) {
@@ -8055,22 +8165,54 @@ function editPack(id, isCatalogue) {
 }
 
 // Delete pack (catalogue or custom)
-function deletePack(id, isCatalogue) {
+async function deletePack(id, isCatalogue) {
   if (!confirm('Êtes-vous sûr de vouloir supprimer ce pack ?')) return;
   
-  if (isCatalogue) {
-    const catIndex = parseInt(id.replace('cat_', ''));
-    PACKS_CATALOGUE.splice(catIndex, 1);
-    // Save to localStorage to persist catalogue changes
-    localStorage.setItem('crm_packs_catalogue', JSON.stringify(PACKS_CATALOGUE));
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      const realId = isCatalogue ? PACKS_CATALOGUE[parseInt(id.replace('cat_', ''))]?.id : id;
+      
+      if (realId) {
+        const result = await api.deletePack(realId);
+        if (result.success) {
+          const packsRes = await api.getPacks();
+          if (packsRes.success) {
+            PACKS_CATALOGUE.length = 0;
+            packsRes.data.forEach(p => {
+              PACKS_CATALOGUE.push({
+                ref: p.reference,
+                name: p.name,
+                products: p.products || [],
+                price: parseFloat(p.price) || 0,
+                discount: parseFloat(p.discount) || 0,
+                isActive: p.isActive !== false,
+                id: p.id
+              });
+            });
+          }
+          renderProduits();
+          showToast('Supprimé', 'Pack supprimé', 'success');
+        } else {
+          showToast('Erreur', result.message || 'Erreur', 'error');
+        }
+      }
+    } catch (error) {
+      showToast('Erreur', error.message, 'error');
+    }
   } else {
-    const index = data.packs.findIndex(p => p.id === parseInt(id));
-    if (index >= 0) data.packs.splice(index, 1);
-    saveData();
+    if (isCatalogue) {
+      const catIndex = parseInt(id.replace('cat_', ''));
+      PACKS_CATALOGUE.splice(catIndex, 1);
+      localStorage.setItem('crm_packs_catalogue', JSON.stringify(PACKS_CATALOGUE));
+    } else {
+      const index = data.packs.findIndex(p => p.id === parseInt(id));
+      if (index >= 0) data.packs.splice(index, 1);
+      saveData();
+    }
+    
+    renderProduits();
+    showToast('Supprimé', 'Pack supprimé', 'success');
   }
-  
-  renderProduits();
-  showToast('Supprimé', 'Pack supprimé', 'success');
 }
 
 function filterProduits(filter, tab) {
@@ -8087,13 +8229,13 @@ function filterByCategory(category, btn) {
   renderProduits();
 }
 
-function saveProduit(e) {
+async function saveProduit(e) {
   e.preventDefault();
   const form = e.target;
   const id = form.dataset.id;
   
-  const produit = {
-    ref: form.reference.value.trim().toUpperCase(),
+  const produitData = {
+    reference: form.reference.value.trim().toUpperCase(),
     name: form.name.value.trim(),
     model: form.model?.value.trim() || '',
     type: form.type.value,
@@ -8105,55 +8247,135 @@ function saveProduit(e) {
     notes: form.notes?.value.trim() || ''
   };
   
-  // Admin adds to PRODUCT_CATALOGUE
-  if (currentUser?.role === 'admin') {
-    if (id && id.startsWith('cat_')) {
-      // Edit existing catalogue item
-      const catIndex = parseInt(id.replace('cat_', ''));
-      PRODUCT_CATALOGUE[catIndex] = produit;
-    } else if (id) {
-      // Edit custom product
-      const index = data.produits.findIndex(p => p.id === parseInt(id));
-      if (index >= 0) {
-        data.produits[index] = { ...data.produits[index], ...produit, reference: produit.ref };
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      showLoadingOverlay('Enregistrement...');
+      let result;
+      
+      if (id && !id.startsWith('cat_')) {
+        result = await api.updateProduit(id, produitData);
+      } else {
+        result = await api.createProduit(produitData);
       }
-      saveData();
-    } else {
-      // Add new to catalogue
-      PRODUCT_CATALOGUE.push(produit);
+      
+      hideLoadingOverlay();
+      
+      if (result.success) {
+        // Recharger les produits
+        const produitsRes = await api.getProduits();
+        if (produitsRes.success) {
+          // Mettre à jour le catalogue
+          PRODUCT_CATALOGUE.length = 0;
+          produitsRes.data.forEach(p => {
+            PRODUCT_CATALOGUE.push({
+              ref: p.reference,
+              name: p.name,
+              model: p.model || '',
+              type: p.type || 'produit',
+              category: p.category || 'Matériel',
+              price: parseFloat(p.price) || 0,
+              tva: parseFloat(p.tva) || 20,
+              isActive: p.isActive !== false,
+              characteristics: p.characteristics || '',
+              notes: p.notes || '',
+              id: p.id
+            });
+          });
+        }
+        closeModal();
+        renderProduits();
+        showToast('Succès', id ? 'Produit modifié' : 'Produit créé', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      hideLoadingOverlay();
+      showToast('Erreur', error.message, 'error');
     }
-    // Save catalogue to localStorage
-    localStorage.setItem('crm_product_catalogue', JSON.stringify(PRODUCT_CATALOGUE));
   } else {
-    // Commercial adds to custom products
-    const customProduit = {
-      id: id ? parseInt(id) : ++data.lastId.produit,
-      reference: produit.ref,
-      ...produit,
-      createdAt: id ? data.produits.find(p => p.id === parseInt(id))?.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+    // Mode localStorage
+    const produit = {
+      ref: produitData.reference,
+      ...produitData
     };
     
-    if (id) {
-      const index = data.produits.findIndex(p => p.id === parseInt(id));
-      if (index >= 0) data.produits[index] = customProduit;
+    if (currentUser?.role === 'admin') {
+      if (id && id.startsWith('cat_')) {
+        const catIndex = parseInt(id.replace('cat_', ''));
+        PRODUCT_CATALOGUE[catIndex] = produit;
+      } else if (id) {
+        const index = data.produits.findIndex(p => p.id === parseInt(id));
+        if (index >= 0) {
+          data.produits[index] = { ...data.produits[index], ...produit, reference: produit.ref };
+        }
+        saveData();
+      } else {
+        PRODUCT_CATALOGUE.push(produit);
+      }
+      localStorage.setItem('crm_product_catalogue', JSON.stringify(PRODUCT_CATALOGUE));
     } else {
-      data.produits.push(customProduit);
+      const customProduit = {
+        id: id ? parseInt(id) : ++data.lastId.produit,
+        reference: produit.ref,
+        ...produit,
+        createdAt: id ? data.produits.find(p => p.id === parseInt(id))?.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      if (id) {
+        const index = data.produits.findIndex(p => p.id === parseInt(id));
+        if (index >= 0) data.produits[index] = customProduit;
+      } else {
+        data.produits.push(customProduit);
+      }
+      saveData();
     }
-    saveData();
+    
+    closeModal();
+    renderProduits();
+    showToast('Succès', id ? 'Produit modifié' : 'Produit créé', 'success');
   }
-  
-  closeModal();
-  renderProduits();
-  showToast('Succès', id ? 'Produit modifié' : 'Produit créé', 'success');
 }
 
-function deleteProduit(id) {
+async function deleteProduit(id) {
   if (!confirm('Supprimer ce produit ?')) return;
-  data.produits = data.produits.filter(p => p.id !== id);
-  saveData();
-  renderProduits();
-  showToast('Supprimé', 'Produit supprimé', 'success');
+  
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      const result = await api.deleteProduit(id);
+      if (result.success) {
+        // Recharger les produits
+        const produitsRes = await api.getProduits();
+        if (produitsRes.success) {
+          PRODUCT_CATALOGUE.length = 0;
+          produitsRes.data.forEach(p => {
+            PRODUCT_CATALOGUE.push({
+              ref: p.reference,
+              name: p.name,
+              model: p.model || '',
+              type: p.type || 'produit',
+              category: p.category || 'Matériel',
+              price: parseFloat(p.price) || 0,
+              tva: parseFloat(p.tva) || 20,
+              isActive: p.isActive !== false,
+              id: p.id
+            });
+          });
+        }
+        renderProduits();
+        showToast('Supprimé', 'Produit supprimé', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    data.produits = data.produits.filter(p => p.id !== id);
+    saveData();
+    renderProduits();
+    showToast('Supprimé', 'Produit supprimé', 'success');
+  }
 }
 
 // =====================================================
@@ -9352,22 +9574,48 @@ function generateModernBCPdf(order, commercialName) {
   doc.save('DesClick-BC-' + (order.orderNumber || 'draft') + '.pdf');
 }
 
-function saveBCOrder(formData) {
-  data.lastId.order = (data.lastId.order || 0) + 1;
-  
-  const order = {
-    id: data.lastId.order,
+async function saveBCOrder(formData) {
+  const orderData = {
     ...formData,
-    ownerId: currentUser.id,
-    ownerName: currentUser.firstName + ' ' + currentUser.lastName,
-    createdAt: new Date().toISOString()
+    ownerName: currentUser.firstName + ' ' + currentUser.lastName
   };
   
-  if (!data.orders) data.orders = [];
-  data.orders.push(order);
-  
-  logActivity('order', 'Bon de commande cree: ' + formData.orderNumber + ' - ' + formatCurrency(formData.totalTTC));
-  saveData();
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      const result = await api.createCommande(orderData);
+      if (result.success) {
+        // Recharger les commandes
+        const commandesRes = await api.getCommandes();
+        if (commandesRes.success) {
+          data.orders = commandesRes.data;
+        }
+        logActivity('order', 'Bon de commande créé: ' + formData.orderNumber + ' - ' + formatCurrency(formData.totalTTC));
+        return true;
+      } else {
+        showToast('Erreur', result.message || 'Erreur lors de l\'enregistrement', 'error');
+        return false;
+      }
+    } catch (error) {
+      showToast('Erreur', error.message, 'error');
+      return false;
+    }
+  } else {
+    data.lastId.order = (data.lastId.order || 0) + 1;
+    
+    const order = {
+      id: data.lastId.order,
+      ...orderData,
+      ownerId: currentUser.id,
+      createdAt: new Date().toISOString()
+    };
+    
+    if (!data.orders) data.orders = [];
+    data.orders.push(order);
+    
+    logActivity('order', 'Bon de commande créé: ' + formData.orderNumber + ' - ' + formatCurrency(formData.totalTTC));
+    saveData();
+    return true;
+  }
 }
 
 function resetBCForm() {
@@ -10547,6 +10795,10 @@ async function toggleUserStatus(id) {
 // =====================================================
 
 function renderConsolidation() {
+  console.log('📊 renderConsolidation - data.users:', data.users);
+  console.log('📊 renderConsolidation - data.entreprises:', data.entreprises);
+  console.log('📊 renderConsolidation - data.opportunites:', data.opportunites);
+  
   // Global stats
   document.getElementById('consolEntreprises').textContent = data.entreprises.length;
   document.getElementById('consolContacts').textContent = data.contacts.length;
@@ -10557,6 +10809,11 @@ function renderConsolidation() {
   
   // Per user stats
   const users = data.users.filter(u => u.role === 'commercial');
+  console.log('📊 Commerciaux trouvés:', users);
+  
+  // Log des ownerIds pour debug
+  console.log('📊 OwnerIds des entreprises:', data.entreprises.map(e => ({ id: e.id, name: e.name, ownerId: e.ownerId })));
+  
   const container = document.getElementById('consolidationTable');
   
   if (users.length === 0) {
@@ -11650,6 +11907,15 @@ function closeModalOverlay(e) {
   }
 }
 
+// Fonctions pour le modal principal (Actions: Email, RDV, Appels, Tâches)
+function openMainModal() {
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeMainModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+
 function getEntrepriseForm(id) {
   const e = id ? data.entreprises.find(ent => ent.id === id) : {};
   // Trouver le contact principal associé
@@ -12395,23 +12661,78 @@ function savePack(e) {
     regularPrice: regularPrice
   };
   
-  // Admin: add to shared catalogue (visible to all users)
-  if (currentUser?.role === 'admin') {
-    PACKS_CATALOGUE.push(pack);
-    localStorage.setItem('crm_packs_catalogue', JSON.stringify(PACKS_CATALOGUE));
+  if (USE_GOOGLE_SHEETS_API) {
+    (async () => {
+      try {
+        showLoadingOverlay('Enregistrement...');
+        const packData = {
+          reference: pack.ref,
+          name: pack.name,
+          description: pack.description,
+          characteristics: pack.characteristics,
+          notes: pack.notes,
+          type: 'Pack',
+          category: 'Pack',
+          items: JSON.stringify(pack.items),
+          price: pack.price,
+          regularPrice: pack.regularPrice,
+          isActive: true
+        };
+        
+        const result = await api.createPack(packData);
+        hideLoadingOverlay();
+        
+        if (result.success) {
+          const packsRes = await api.getPacks();
+          if (packsRes.success) {
+            PACKS_CATALOGUE.length = 0;
+            packsRes.data.forEach(p => {
+              let items = p.items || [];
+              if (typeof items === 'string') {
+                try { items = JSON.parse(items); } catch(e) { items = []; }
+              }
+              PACKS_CATALOGUE.push({
+                ref: p.reference,
+                name: p.name,
+                description: p.description || '',
+                items: items,
+                price: parseFloat(p.price) || 0,
+                regularPrice: parseFloat(p.regularPrice) || 0,
+                isActive: p.isActive !== false,
+                id: p.id
+              });
+            });
+          }
+          closeModal();
+          renderProduits();
+          packItemCounter = 0;
+          showToast('Succès', 'Pack créé avec succès', 'success');
+        } else {
+          showToast('Erreur', result.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        hideLoadingOverlay();
+        showToast('Erreur', error.message, 'error');
+      }
+    })();
   } else {
-    // Commercial: add to personal packs (only visible to them)
-    if (!data.packs) data.packs = [];
-    pack.id = Date.now();
-    pack.createdAt = new Date().toISOString();
-    data.packs.push(pack);
-    saveData();
+    // Mode localStorage
+    if (currentUser?.role === 'admin') {
+      PACKS_CATALOGUE.push(pack);
+      localStorage.setItem('crm_packs_catalogue', JSON.stringify(PACKS_CATALOGUE));
+    } else {
+      if (!data.packs) data.packs = [];
+      pack.id = Date.now();
+      pack.createdAt = new Date().toISOString();
+      data.packs.push(pack);
+      saveData();
+    }
+    
+    closeModal();
+    renderProduits();
+    packItemCounter = 0;
+    showToast('Succès', 'Pack créé avec succès', 'success');
   }
-  
-  closeModal();
-  renderProduits();
-  packItemCounter = 0;
-  showToast('Succès', 'Pack créé avec succès', 'success');
 }
 
 // =====================================================
@@ -12480,13 +12801,13 @@ function getProduitCatalogueForm(catIndex) {
   `;
 }
 
-function saveProduitCatalogue(e) {
+async function saveProduitCatalogue(e) {
   e.preventDefault();
   const form = e.target;
   const catIndex = parseInt(form.dataset.catIndex);
   
-  PRODUCT_CATALOGUE[catIndex] = {
-    ref: form.reference.value.trim().toUpperCase(),
+  const produitData = {
+    reference: form.reference.value.trim().toUpperCase(),
     name: form.name.value.trim(),
     model: form.model?.value.trim() || '',
     type: form.type.value,
@@ -12496,12 +12817,60 @@ function saveProduitCatalogue(e) {
     isActive: form.isActive?.checked !== false
   };
   
-  // Save to localStorage to persist catalogue changes
-  localStorage.setItem('crm_product_catalogue', JSON.stringify(PRODUCT_CATALOGUE));
-  
-  closeModal();
-  renderProduits();
-  showToast('Succès', 'Produit catalogue modifié', 'success');
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      showLoadingOverlay('Enregistrement...');
+      const existingId = PRODUCT_CATALOGUE[catIndex]?.id;
+      
+      let result;
+      if (existingId) {
+        result = await api.updateProduit(existingId, produitData);
+      } else {
+        result = await api.createProduit(produitData);
+      }
+      
+      hideLoadingOverlay();
+      
+      if (result.success) {
+        const produitsRes = await api.getProduits();
+        if (produitsRes.success) {
+          PRODUCT_CATALOGUE.length = 0;
+          produitsRes.data.forEach(p => {
+            PRODUCT_CATALOGUE.push({
+              ref: p.reference,
+              name: p.name,
+              model: p.model || '',
+              type: p.type || 'produit',
+              category: p.category || 'Matériel',
+              price: parseFloat(p.price) || 0,
+              tva: parseFloat(p.tva) || 20,
+              isActive: p.isActive !== false,
+              id: p.id
+            });
+          });
+        }
+        closeModal();
+        renderProduits();
+        showToast('Succès', 'Produit catalogue modifié', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      hideLoadingOverlay();
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    PRODUCT_CATALOGUE[catIndex] = {
+      ref: produitData.reference,
+      ...produitData
+    };
+    
+    localStorage.setItem('crm_product_catalogue', JSON.stringify(PRODUCT_CATALOGUE));
+    
+    closeModal();
+    renderProduits();
+    showToast('Succès', 'Produit catalogue modifié', 'success');
+  }
 }
 
 // =====================================================
@@ -12637,7 +13006,7 @@ function calculatePackEditPrice() {
   if (priceField) priceField.value = formatCurrency(total);
 }
 
-function savePackEdit(e) {
+async function savePackEdit(e) {
   e.preventDefault();
   const form = e.target;
   const id = form.dataset.id;
@@ -12670,34 +13039,95 @@ function savePackEdit(e) {
   });
   
   const packData = {
-    ref: form.ref.value.trim().toUpperCase(),
+    reference: form.ref.value.trim().toUpperCase(),
     name: form.name.value.trim(),
     description: form.description?.value.trim() || '',
     characteristics: form.characteristics?.value.trim() || '',
     notes: form.notes?.value.trim() || '',
     type: 'Pack',
     category: 'Pack',
-    items: items,
+    items: JSON.stringify(items),
     price: parseFloat(form.price.value) || 0,
     regularPrice: regularPrice
   };
   
-  if (isCatalogue) {
-    const catIndex = parseInt(id);
-    PACKS_CATALOGUE[catIndex] = { ...PACKS_CATALOGUE[catIndex], ...packData };
-    localStorage.setItem('crm_packs_catalogue', JSON.stringify(PACKS_CATALOGUE));
-  } else {
-    const packIndex = data.packs.findIndex(p => p.id === parseInt(id));
-    if (packIndex >= 0) {
-      data.packs[packIndex] = { ...data.packs[packIndex], ...packData, updatedAt: new Date().toISOString() };
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      showLoadingOverlay('Enregistrement...');
+      const realId = isCatalogue ? PACKS_CATALOGUE[parseInt(id)]?.id : id;
+      
+      let result;
+      if (realId) {
+        result = await api.updatePack(realId, packData);
+      } else {
+        result = await api.createPack(packData);
+      }
+      
+      hideLoadingOverlay();
+      
+      if (result.success) {
+        const packsRes = await api.getPacks();
+        if (packsRes.success) {
+          PACKS_CATALOGUE.length = 0;
+          packsRes.data.forEach(p => {
+            let pItems = p.items || [];
+            if (typeof pItems === 'string') {
+              try { pItems = JSON.parse(pItems); } catch(e) { pItems = []; }
+            }
+            PACKS_CATALOGUE.push({
+              ref: p.reference,
+              name: p.name,
+              description: p.description || '',
+              items: pItems,
+              price: parseFloat(p.price) || 0,
+              regularPrice: parseFloat(p.regularPrice) || 0,
+              isActive: p.isActive !== false,
+              id: p.id
+            });
+          });
+        }
+        closeModal();
+        renderProduits();
+        packEditItemCounter = 0;
+        showToast('Succès', 'Pack modifié avec succès', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      hideLoadingOverlay();
+      showToast('Erreur', error.message, 'error');
     }
-    saveData();
+  } else {
+    const localPackData = {
+      ref: packData.reference,
+      name: packData.name,
+      description: packData.description,
+      characteristics: packData.characteristics,
+      notes: packData.notes,
+      type: 'Pack',
+      category: 'Pack',
+      items: items,
+      price: packData.price,
+      regularPrice: packData.regularPrice
+    };
+    
+    if (isCatalogue) {
+      const catIndex = parseInt(id);
+      PACKS_CATALOGUE[catIndex] = { ...PACKS_CATALOGUE[catIndex], ...localPackData };
+      localStorage.setItem('crm_packs_catalogue', JSON.stringify(PACKS_CATALOGUE));
+    } else {
+      const packIndex = data.packs.findIndex(p => p.id === parseInt(id));
+      if (packIndex >= 0) {
+        data.packs[packIndex] = { ...data.packs[packIndex], ...localPackData, updatedAt: new Date().toISOString() };
+      }
+      saveData();
+    }
+    
+    closeModal();
+    renderProduits();
+    packEditItemCounter = 0;
+    showToast('Succès', 'Pack modifié avec succès', 'success');
   }
-  
-  closeModal();
-  renderProduits();
-  packEditItemCounter = 0;
-  showToast('Succès', 'Pack modifié avec succès', 'success');
 }
 
 function getUtilisateurForm(id) {
@@ -13390,14 +13820,31 @@ function viewEmail(id) {
   openMainModal();
 }
 
-function sendEmail(id) {
-  const email = data.emails.find(e => e.id === id);
+async function sendEmail(id) {
+  const email = data.emails.find(e => String(e.id) === String(id));
   if (email) {
-    email.statut = 'envoye';
-    email.dateEnvoi = new Date().toISOString();
-    saveData();
-    renderEmails();
-    showToast('Envoyé', 'Email marqué comme envoyé', 'success');
+    if (USE_GOOGLE_SHEETS_API) {
+      try {
+        const result = await api.updateEmail(id, { 
+          statut: 'envoye', 
+          dateEnvoi: new Date().toISOString() 
+        });
+        if (result.success) {
+          email.statut = 'envoye';
+          email.dateEnvoi = new Date().toISOString();
+          renderEmails();
+          showToast('Envoyé', 'Email marqué comme envoyé', 'success');
+        }
+      } catch (error) {
+        showToast('Erreur', error.message, 'error');
+      }
+    } else {
+      email.statut = 'envoye';
+      email.dateEnvoi = new Date().toISOString();
+      saveData();
+      renderEmails();
+      showToast('Envoyé', 'Email marqué comme envoyé', 'success');
+    }
   }
 }
 
