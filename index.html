@@ -219,10 +219,12 @@
     
     async getCalendarEvents(month, year) { return this.request('getCalendarEvents', { month, year }, 'GET'); }
     
-    // Messages & Alertes
+    // Messages
     async getMessages() { return this.request('getMessages', {}, 'GET'); }
-    async getUnreadMessages() { return this.request('getUnreadMessages', {}, 'GET'); }
-    async sendMessage(toUserId, content) { return this.request('sendMessage', { toUserId, content }); }
+    async createMessage(messageData) { return this.request('createMessage', messageData); }
+    async markMessagesAsRead(fromId, toId) { return this.request('markMessagesAsRead', { fromId, toId }); }
+    
+    // Alertes
     async getAlertes() { return this.request('getAlertes', {}, 'GET'); }
     async getUnreadAlertes() { return this.request('getUnreadAlertes', {}, 'GET'); }
     async markAlerteRead(id) { return this.request('markAlerteRead', { id }); }
@@ -6654,7 +6656,7 @@ function showPage(pageName) {
     case 'produits': renderProduits(); break;
     case 'boncommande': initBonCommande(); break;
     case 'commandes': renderCommandes(); break;
-    case 'messagerie': renderMessaging(); break;
+    case 'messagerie': (async () => { await renderMessaging(); })(); break;
     case 'alertes': renderAlertes(); break;
     case 'equipe': renderEquipe(); break;
     case 'consolidation': renderConsolidation(); break;
@@ -9933,26 +9935,28 @@ function exportBCHistory() {
 // MESSAGERIE
 // =====================================================
 
-function renderMessaging() {
-  console.log('📧 renderMessaging - data.users:', (data.users || []).length, 'utilisateurs');
+async function renderMessaging() {
+  console.log('📧 renderMessaging - Chargement des messages...');
   
-  // Charger les messages depuis localStorage (même en mode API)
-  try {
-    const storedMessages = localStorage.getItem('crm_messages');
-    if (storedMessages) {
-      const parsed = JSON.parse(storedMessages);
-      if (parsed.messages && Array.isArray(parsed.messages)) {
-        data.messages = parsed.messages;
-        if (!data.lastId) data.lastId = {};
-        data.lastId.message = parsed.lastMessageId || 0;
-        console.log('💾 Messages chargés depuis localStorage:', data.messages.length);
+  // Charger les messages depuis l'API Google Sheets
+  if (USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+    try {
+      const messagesRes = await api.getMessages();
+      if (messagesRes.success && messagesRes.data) {
+        data.messages = messagesRes.data;
+        console.log('✅ Messages chargés depuis API:', data.messages.length);
+      } else {
+        console.warn('⚠️ Erreur chargement messages API:', messagesRes.message);
+        data.messages = data.messages || [];
       }
+    } catch (e) {
+      console.error('❌ Erreur getMessages:', e);
+      data.messages = data.messages || [];
     }
-  } catch (e) {
-    console.warn('⚠️ Erreur chargement messages:', e);
   }
   
   if (!data.messages) data.messages = [];
+  console.log('📧 Total messages:', data.messages.length, '- Users:', (data.users || []).length);
   
   renderConversations();
 }
@@ -10015,7 +10019,7 @@ function getConversationMessages(userId1, userId2) {
   ).sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
-function openChat(userId) {
+async function openChat(userId) {
   currentChat = String(userId);
   console.log('💬 openChat:', currentChat);
   
@@ -10035,28 +10039,32 @@ function openChat(userId) {
     `;
   }
   
-  // Mark messages as read
-  let hasChanges = false;
-  (data.messages || []).forEach(m => {
-    if (String(m.fromId) === currentChat && String(m.toId) === String(currentUser.id) && !m.read) {
-      m.read = true;
-      hasChanges = true;
-    }
-  });
-  
-  // Sauvegarder si des messages ont été marqués comme lus
-  if (hasChanges) {
+  // Marquer les messages comme lus via l'API
+  if (USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
     try {
-      const messagesData = {
-        messages: data.messages,
-        lastMessageId: data.lastId?.message || 0
-      };
-      localStorage.setItem('crm_messages', JSON.stringify(messagesData));
+      // Marquer comme lus: messages DE currentChat VERS currentUser
+      await api.markMessagesAsRead(currentChat, String(currentUser.id));
+      
+      // Mettre à jour localement aussi
+      (data.messages || []).forEach(m => {
+        if (String(m.fromId) === currentChat && String(m.toId) === String(currentUser.id)) {
+          m.read = true;
+        }
+      });
     } catch (e) {
-      console.warn('⚠️ Erreur sauvegarde messages:', e);
+      console.warn('⚠️ Erreur markMessagesAsRead:', e);
     }
+  } else {
+    // Mode localStorage
+    let hasChanges = false;
+    (data.messages || []).forEach(m => {
+      if (String(m.fromId) === currentChat && String(m.toId) === String(currentUser.id) && !m.read) {
+        m.read = true;
+        hasChanges = true;
+      }
+    });
     
-    if (!USE_GOOGLE_SHEETS_API) {
+    if (hasChanges) {
       saveData();
     }
   }
@@ -10102,7 +10110,7 @@ function handleChatKeypress(e) {
   }
 }
 
-function sendChatMessage() {
+async function sendChatMessage() {
   console.log('📤 sendChatMessage - currentChat:', currentChat);
   
   if (!currentChat) {
@@ -10122,13 +10130,11 @@ function sendChatMessage() {
     return;
   }
   
-  // S'assurer que les structures existent
-  if (!data.messages) data.messages = [];
-  if (!data.lastId) data.lastId = {};
-  data.lastId.message = (data.lastId.message || 0) + 1;
+  // Désactiver le bouton pendant l'envoi
+  const sendBtn = input.nextElementSibling;
+  if (sendBtn) sendBtn.disabled = true;
   
-  const newMessage = {
-    id: data.lastId.message,
+  const messageData = {
     fromId: String(currentUser.id),
     toId: String(currentChat),
     content: content,
@@ -10136,31 +10142,54 @@ function sendChatMessage() {
     date: new Date().toISOString()
   };
   
-  data.messages.push(newMessage);
-  console.log('✅ Message ajouté:', newMessage);
-  
-  // Sauvegarder les messages dans localStorage (même en mode API)
-  // Les messages sont des données locales, pas synchronisées avec Google Sheets
-  try {
-    const messagesData = {
-      messages: data.messages,
-      lastMessageId: data.lastId.message
-    };
-    localStorage.setItem('crm_messages', JSON.stringify(messagesData));
-    console.log('💾 Messages sauvegardés dans localStorage');
-  } catch (e) {
-    console.warn('⚠️ Erreur sauvegarde messages:', e);
-  }
-  
-  // En mode localStorage, sauvegarder aussi via saveData
-  if (!USE_GOOGLE_SHEETS_API) {
+  // Envoyer via l'API Google Sheets
+  if (USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+    try {
+      console.log('📡 Envoi du message via API...');
+      const result = await api.createMessage(messageData);
+      
+      if (result.success) {
+        console.log('✅ Message envoyé:', result.data);
+        
+        // Ajouter le message localement avec l'ID retourné
+        if (!data.messages) data.messages = [];
+        data.messages.push({
+          id: result.data?.id || Date.now(),
+          ...messageData
+        });
+        
+        input.value = '';
+        renderChatMessages();
+        renderConversations();
+        showToast('Envoyé', 'Message envoyé', 'success');
+      } else {
+        console.error('❌ Erreur API:', result.message);
+        showToast('Erreur', result.message || 'Impossible d\'envoyer le message', 'error');
+      }
+    } catch (e) {
+      console.error('❌ Erreur envoi message:', e);
+      showToast('Erreur', 'Erreur de connexion', 'error');
+    }
+  } else {
+    // Mode localStorage
+    if (!data.messages) data.messages = [];
+    if (!data.lastId) data.lastId = {};
+    data.lastId.message = (data.lastId.message || 0) + 1;
+    
+    data.messages.push({
+      id: data.lastId.message,
+      ...messageData
+    });
+    
     saveData();
+    input.value = '';
+    renderChatMessages();
+    renderConversations();
+    showToast('Envoyé', 'Message envoyé', 'success');
   }
   
-  input.value = '';
-  renderChatMessages();
-  renderConversations();
-  showToast('Envoyé', 'Message envoyé', 'success');
+  // Réactiver le bouton
+  if (sendBtn) sendBtn.disabled = false;
 }
 
 // =====================================================
