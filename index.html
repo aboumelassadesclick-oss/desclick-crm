@@ -6187,7 +6187,7 @@ async function loadData() {
       api.getRdv(),
       api.getAppels(),
       api.getTaches(),
-      currentUser?.role === 'admin' ? api.getUsers() : Promise.resolve({ success: true, data: [] })
+      api.getUsers()  // Charger les utilisateurs pour TOUS les rôles (messagerie, filtres, etc.)
     ]);
     
     // Mettre à jour les données locales
@@ -6445,7 +6445,7 @@ async function handleLogin(e) {
           api.getRdv(),
           api.getAppels(),
           api.getTaches(),
-          currentUser?.role === 'admin' ? api.getUsers() : Promise.resolve({ success: true, data: [] })
+          api.getUsers()  // Charger les utilisateurs pour TOUS les rôles
         ]);
         
         const getValue = (r, name) => {
@@ -9929,6 +9929,7 @@ function exportBCHistory() {
 // =====================================================
 
 function renderMessaging() {
+  console.log('📧 renderMessaging - data.users:', (data.users || []).length, 'utilisateurs');
   renderConversations();
 }
 
@@ -12127,15 +12128,40 @@ function exportAdminCommandes() {
 
 function populateCommercialFilter(selectId) {
   const select = document.getElementById(selectId);
-  if (!select || select.options.length > 1) return;
+  if (!select) return;
   
-  const commerciaux = (data.users || []).filter(u => u.role === 'commercial');
+  // Sauvegarder la valeur actuelle
+  const currentValue = select.value;
+  
+  // Garder seulement la première option (Tous les commerciaux)
+  const firstOption = select.options[0];
+  select.innerHTML = '';
+  if (firstOption) {
+    select.appendChild(firstOption);
+  } else {
+    const allOption = document.createElement('option');
+    allOption.value = '';
+    allOption.textContent = 'Tous les commerciaux';
+    select.appendChild(allOption);
+  }
+  
+  // Récupérer tous les utilisateurs commerciaux ET admins
+  const users = Array.isArray(data.users) ? data.users : [];
+  const commerciaux = users.filter(u => u.role === 'commercial' || u.role === 'admin');
+  
+  console.log('📋 populateCommercialFilter:', selectId, '- Utilisateurs trouvés:', commerciaux.length, '/', users.length);
+  
   commerciaux.forEach(u => {
     const option = document.createElement('option');
     option.value = u.id;
-    option.textContent = `${u.firstName} ${u.lastName}`;
+    option.textContent = `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Sans nom';
     select.appendChild(option);
   });
+  
+  // Restaurer la valeur précédente si elle existe toujours
+  if (currentValue && Array.from(select.options).some(o => o.value === currentValue)) {
+    select.value = currentValue;
+  }
 }
 
 function populateStageFilter(selectId) {
@@ -16242,7 +16268,7 @@ window.forceReloadFromGoogleSheets = async function() {
       api.getRdv(),
       api.getAppels(),
       api.getTaches(),
-      currentUser?.role === 'admin' ? api.getUsers() : Promise.resolve({ success: true, data: [] })
+      api.getUsers()  // Charger les utilisateurs pour TOUS les rôles
     ]);
     
     const [entreprisesRes, contactsRes, opportunitesRes, produitsRes, packsRes, 
@@ -16455,7 +16481,7 @@ async function syncFromGoogleSheets() {
       api.getRdv().then(r => { console.log('✅ RDV:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
       api.getAppels().then(r => { console.log('✅ Appels:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
       api.getTaches().then(r => { console.log('✅ Tâches:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }),
-      currentUser?.role === 'admin' ? api.getUsers().then(r => { console.log('✅ Users:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; }) : Promise.resolve({ success: true, data: [] })
+      api.getUsers().then(r => { console.log('✅ Users:', r.success ? r.data?.length || 0 : 'ERREUR'); return r; })  // Charger pour TOUS les rôles
     ]);
     
     console.log('📊 Résultats bruts:', results.map(r => r.status));
