@@ -9933,29 +9933,43 @@ function renderMessaging() {
 }
 
 function renderConversations() {
-  const users = (data.users || []).filter(u => u.id !== currentUser.id && u.isActive);
+  // Ne pas filtrer par isActive - afficher tous les utilisateurs sauf soi-même
+  const allUsers = Array.isArray(data.users) ? data.users : [];
+  const users = allUsers.filter(u => {
+    // Exclure l'utilisateur actuel
+    if (String(u.id) === String(currentUser.id)) return false;
+    // Inclure si isActive n'est pas défini ou est true
+    if (u.isActive === false) return false;
+    return true;
+  });
+  
+  console.log('📧 Messagerie - Utilisateurs disponibles:', users.length, 'sur', allUsers.length, 'total');
+  
   const container = document.getElementById('conversationsList');
+  if (!container) return;
   
   if (users.length === 0) {
     container.innerHTML = `
       <div class="empty-state" style="padding: 2rem;">
         <p class="text-muted">Aucun utilisateur disponible</p>
+        <p style="font-size: 12px; margin-top: 8px;">Total utilisateurs: ${allUsers.length}</p>
       </div>
     `;
     return;
   }
   
   container.innerHTML = users.map(u => {
+    const odIdU = String(u.id);
     const messages = getConversationMessages(currentUser.id, u.id);
     const lastMsg = messages[messages.length - 1];
-    const unread = messages.filter(m => m.toId === currentUser.id && !m.read).length;
+    const unread = messages.filter(m => String(m.toId) === String(currentUser.id) && !m.read).length;
     
     return `
-      <div class="conversation-item ${currentChat === u.id ? 'active' : ''} ${unread > 0 ? 'unread' : ''}" 
-           onclick="openChat(${u.id})">
-        <div class="conversation-avatar">${(u.firstName[0] + u.lastName[0]).toUpperCase()}</div>
+      <div class="conversation-item ${String(currentChat) === odIdU ? 'active' : ''} ${unread > 0 ? 'unread' : ''}" 
+           onclick="openChat('${u.id}')">
+        <div class="conversation-avatar">${((u.firstName || '?')[0] + (u.lastName || '?')[0]).toUpperCase()}</div>
         <div class="conversation-info">
-          <div class="conversation-name">${u.firstName} ${u.lastName}</div>
+          <div class="conversation-name">${u.firstName || ''} ${u.lastName || ''}</div>
           <div class="conversation-preview">${lastMsg?.content || 'Aucun message'}</div>
         </div>
         <div class="conversation-meta">
@@ -9968,25 +9982,32 @@ function renderConversations() {
 }
 
 function getConversationMessages(userId1, userId2) {
+  const id1 = String(userId1);
+  const id2 = String(userId2);
   return (data.messages || []).filter(m =>
-    (m.fromId === userId1 && m.toId === userId2) ||
-    (m.fromId === userId2 && m.toId === userId1)
+    (String(m.fromId) === id1 && String(m.toId) === id2) ||
+    (String(m.fromId) === id2 && String(m.toId) === id1)
   ).sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
 function openChat(userId) {
-  currentChat = userId;
-  const user = data.users.find(u => String(u.id) === String(userId));
+  currentChat = String(userId);
+  const user = (data.users || []).find(u => String(u.id) === currentChat);
+  
+  if (!user) {
+    console.error('Utilisateur non trouvé:', userId);
+    return;
+  }
   
   // Update header
   document.getElementById('chatHeaderInfo').innerHTML = `
-    <strong>${user.firstName} ${user.lastName}</strong>
+    <strong>${user.firstName || ''} ${user.lastName || ''}</strong>
     <span class="text-muted" style="margin-left: 8px;">${user.role === 'admin' ? 'Admin' : 'Commercial'}</span>
   `;
   
   // Mark messages as read
   (data.messages || []).forEach(m => {
-    if (m.fromId === userId && m.toId === currentUser.id) {
+    if (String(m.fromId) === currentChat && String(m.toId) === String(currentUser.id)) {
       m.read = true;
     }
   });
@@ -10002,6 +10023,7 @@ function renderChatMessages() {
   
   const messages = getConversationMessages(currentUser.id, currentChat);
   const container = document.getElementById('chatMessages');
+  if (!container) return;
   
   if (messages.length === 0) {
     container.innerHTML = `
@@ -10014,9 +10036,10 @@ function renderChatMessages() {
     return;
   }
   
+  const myId = String(currentUser.id);
   container.innerHTML = messages.map(m => `
-    <div class="chat-message ${m.fromId === currentUser.id ? 'sent' : 'received'}">
-      <div>${m.content}</div>
+    <div class="chat-message ${String(m.fromId) === myId ? 'sent' : 'received'}">
+      <div>${m.content || ''}</div>
       <div class="chat-message-time">${formatTime(m.date)}</div>
     </div>
   `).join('');
@@ -13844,11 +13867,47 @@ function renderCalendrier() {
   const todayStr = today.toISOString().split('T')[0];
   
   // Get all events for this month
-  const userId = currentUser?.id;
-  const myRdv = (data.rdv || []).filter(r => currentUser?.role === 'admin' || String(r.ownerId) === String(userId));
-  const myAppels = (data.appels || []).filter(a => currentUser?.role === 'admin' || String(a.ownerId) === String(userId));
-  const myTaches = (data.taches || []).filter(t => currentUser?.role === 'admin' || String(t.ownerId) === String(userId));
-  const myEmails = (data.emails || []).filter(e => currentUser?.role === 'admin' || e.ownerId === userId);
+  const userId = String(currentUser?.id || '');
+  const isAdmin = currentUser?.role === 'admin';
+  
+  // Helper function to normalize date to YYYY-MM-DD
+  const normalizeDate = (dateStr) => {
+    if (!dateStr) return '';
+    // Handle various date formats
+    if (dateStr.includes('T')) {
+      return dateStr.split('T')[0];
+    }
+    // If already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    // Try to parse and format
+    try {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().split('T')[0];
+      }
+    } catch(e) {}
+    return dateStr;
+  };
+  
+  // Helper function to check ownership
+  const isOwner = (item) => {
+    if (isAdmin) return true;
+    return String(item.ownerId || item.userId || '') === userId;
+  };
+  
+  const allRdv = Array.isArray(data.rdv) ? data.rdv : [];
+  const allAppels = Array.isArray(data.appels) ? data.appels : [];
+  const allTaches = Array.isArray(data.taches) ? data.taches : [];
+  
+  const myRdv = allRdv.filter(isOwner);
+  const myAppels = allAppels.filter(isOwner);
+  const myTaches = allTaches.filter(isOwner);
+  
+  console.log('📅 Calendrier - RDV:', myRdv.length, '/', allRdv.length);
+  console.log('📅 Calendrier - Appels:', myAppels.length, '/', allAppels.length);
+  console.log('📅 Calendrier - Tâches:', myTaches.length, '/', allTaches.length);
   
   // Previous month days
   for (let i = startDay - 1; i >= 0; i--) {
@@ -13865,17 +13924,17 @@ function renderCalendrier() {
     // Find events for this day
     const dayEvents = [];
     
-    myRdv.filter(r => r.date === dateStr).forEach(r => {
-      const entreprise = data.entreprises.find(e => String(e.id) === String(r.entrepriseId));
-      dayEvents.push({ type: 'rdv', icon: '🤝', title: r.objet, meta: entreprise?.name || '', time: r.heure });
+    myRdv.filter(r => normalizeDate(r.date) === dateStr).forEach(r => {
+      const entreprise = (data.entreprises || []).find(e => String(e.id) === String(r.entrepriseId));
+      dayEvents.push({ type: 'rdv', icon: '🤝', title: r.objet || 'RDV', meta: entreprise?.name || '', time: r.heure || '' });
     });
     
-    myAppels.filter(a => a.date === dateStr).forEach(a => {
-      dayEvents.push({ type: 'appel', icon: '📞', title: a.objet, meta: a.contact, time: a.heure });
+    myAppels.filter(a => normalizeDate(a.date) === dateStr).forEach(a => {
+      dayEvents.push({ type: 'appel', icon: '📞', title: a.objet || 'Appel', meta: a.contact || '', time: a.heure || '' });
     });
     
-    myTaches.filter(t => t.echeance === dateStr && t.statut !== 'terminee').forEach(t => {
-      dayEvents.push({ type: 'tache', icon: '✅', title: t.titre, meta: '', time: '' });
+    myTaches.filter(t => normalizeDate(t.echeance) === dateStr && t.statut !== 'terminee').forEach(t => {
+      dayEvents.push({ type: 'tache', icon: '✅', title: t.titre || 'Tâche', meta: '', time: '' });
     });
     
     const dayEl = document.createElement('div');
@@ -13886,7 +13945,7 @@ function renderCalendrier() {
       <div class="calendar-day-number">${day}</div>
       ${dayEvents.slice(0, 3).map(e => `
         <div class="calendar-event ${e.type}" title="${e.title}">
-          ${e.time ? e.time + ' ' : ''}${e.title.substring(0, 15)}${e.title.length > 15 ? '...' : ''}
+          ${e.time ? e.time + ' ' : ''}${(e.title || '').substring(0, 15)}${(e.title || '').length > 15 ? '...' : ''}
         </div>
       `).join('')}
       ${dayEvents.length > 3 ? `<div style="font-size: 10px; color: var(--text-muted);">+${dayEvents.length - 3} autres</div>` : ''}
@@ -13932,26 +13991,42 @@ function goToToday() {
 
 function renderTodayActions() {
   const container = document.getElementById('todayActions');
-  const todayStr = new Date().toISOString().split('T')[0];
-  const userId = currentUser?.id;
+  if (!container) return;
   
-  const todayRdv = (data.rdv || []).filter(r => r.date === todayStr && (currentUser?.role === 'admin' || r.ownerId === userId));
-  const todayAppels = (data.appels || []).filter(a => a.date === todayStr && (currentUser?.role === 'admin' || a.ownerId === userId));
-  const todayTaches = (data.taches || []).filter(t => t.echeance === todayStr && t.statut !== 'terminee' && (currentUser?.role === 'admin' || t.ownerId === userId));
+  const todayStr = new Date().toISOString().split('T')[0];
+  const userId = String(currentUser?.id || '');
+  const isAdmin = currentUser?.role === 'admin';
+  
+  // Helper function to normalize date
+  const normalizeDate = (dateStr) => {
+    if (!dateStr) return '';
+    if (dateStr.includes('T')) return dateStr.split('T')[0];
+    return dateStr;
+  };
+  
+  // Helper function to check ownership
+  const isOwner = (item) => {
+    if (isAdmin) return true;
+    return String(item.ownerId || item.userId || '') === userId;
+  };
+  
+  const todayRdv = (data.rdv || []).filter(r => normalizeDate(r.date) === todayStr && isOwner(r));
+  const todayAppels = (data.appels || []).filter(a => normalizeDate(a.date) === todayStr && isOwner(a));
+  const todayTaches = (data.taches || []).filter(t => normalizeDate(t.echeance) === todayStr && t.statut !== 'terminee' && isOwner(t));
   
   const events = [];
   
   todayRdv.forEach(r => {
-    const entreprise = data.entreprises.find(e => String(e.id) === String(r.entrepriseId));
-    events.push({ type: 'rdv', icon: '🤝', title: r.objet, meta: `${r.heure} - ${entreprise?.name || ''}`, data: r });
+    const entreprise = (data.entreprises || []).find(e => String(e.id) === String(r.entrepriseId));
+    events.push({ type: 'rdv', icon: '🤝', title: r.objet || 'RDV', meta: `${r.heure || ''} - ${entreprise?.name || ''}`, data: r });
   });
   
   todayAppels.forEach(a => {
-    events.push({ type: 'appel', icon: '📞', title: a.objet, meta: `${a.heure} - ${a.contact}`, data: a });
+    events.push({ type: 'appel', icon: '📞', title: a.objet || 'Appel', meta: `${a.heure || ''} - ${a.contact || ''}`, data: a });
   });
   
   todayTaches.forEach(t => {
-    events.push({ type: 'tache', icon: '✅', title: t.titre, meta: `Priorité: ${t.priorite}`, data: t });
+    events.push({ type: 'tache', icon: '✅', title: t.titre || 'Tâche', meta: `Priorité: ${t.priorite || 'normale'}`, data: t });
   });
   
   if (events.length === 0) {
@@ -13960,7 +14035,7 @@ function renderTodayActions() {
   }
   
   container.innerHTML = events.map(e => `
-    <div class="event-item" onclick="showEventDetail('${e.type}', ${e.data.id})">
+    <div class="event-item" onclick="showEventDetail('${e.type}', '${e.data.id}')">
       <div class="event-item-icon">${e.icon}</div>
       <div class="event-item-content">
         <div class="event-item-title">${e.title}</div>
@@ -13972,28 +14047,53 @@ function renderTodayActions() {
 
 function renderUpcomingEvents() {
   const container = document.getElementById('upcomingEvents');
+  if (!container) return;
+  
   const today = new Date();
   const nextWeek = new Date(today);
   nextWeek.setDate(nextWeek.getDate() + 7);
   const todayStr = today.toISOString().split('T')[0];
   const nextWeekStr = nextWeek.toISOString().split('T')[0];
-  const userId = currentUser?.id;
+  const userId = String(currentUser?.id || '');
+  const isAdmin = currentUser?.role === 'admin';
   
-  const upcomingRdv = (data.rdv || []).filter(r => r.date > todayStr && r.date <= nextWeekStr && (currentUser?.role === 'admin' || r.ownerId === userId));
-  const upcomingAppels = (data.appels || []).filter(a => a.date > todayStr && a.date <= nextWeekStr && (currentUser?.role === 'admin' || a.ownerId === userId));
+  // Helper function to normalize date
+  const normalizeDate = (dateStr) => {
+    if (!dateStr) return '';
+    if (dateStr.includes('T')) return dateStr.split('T')[0];
+    return dateStr;
+  };
+  
+  // Helper function to check ownership
+  const isOwner = (item) => {
+    if (isAdmin) return true;
+    return String(item.ownerId || item.userId || '') === userId;
+  };
+  
+  const upcomingRdv = (data.rdv || []).filter(r => {
+    const d = normalizeDate(r.date);
+    return d > todayStr && d <= nextWeekStr && isOwner(r);
+  });
+  
+  const upcomingAppels = (data.appels || []).filter(a => {
+    const d = normalizeDate(a.date);
+    return d > todayStr && d <= nextWeekStr && isOwner(a);
+  });
   
   const events = [];
   
   upcomingRdv.forEach(r => {
-    const entreprise = data.entreprises.find(e => String(e.id) === String(r.entrepriseId));
-    events.push({ type: 'rdv', icon: '🤝', title: r.objet, meta: `${formatDateFR(r.date)} ${r.heure}`, date: r.date, data: r });
+    const entreprise = (data.entreprises || []).find(e => String(e.id) === String(r.entrepriseId));
+    const dateNorm = normalizeDate(r.date);
+    events.push({ type: 'rdv', icon: '🤝', title: r.objet || 'RDV', meta: `${formatDateFR(dateNorm)} ${r.heure || ''}`, date: dateNorm, data: r });
   });
   
   upcomingAppels.forEach(a => {
-    events.push({ type: 'appel', icon: '📞', title: a.objet, meta: `${formatDateFR(a.date)} ${a.heure}`, date: a.date, data: a });
+    const dateNorm = normalizeDate(a.date);
+    events.push({ type: 'appel', icon: '📞', title: a.objet || 'Appel', meta: `${formatDateFR(dateNorm)} ${a.heure || ''}`, date: dateNorm, data: a });
   });
   
-  events.sort((a, b) => a.date.localeCompare(b.date));
+  events.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   
   if (events.length === 0) {
     container.innerHTML = '<div class="empty-state-mini"><p>Aucun événement prévu</p></div>';
@@ -14001,7 +14101,7 @@ function renderUpcomingEvents() {
   }
   
   container.innerHTML = events.slice(0, 5).map(e => `
-    <div class="event-item" onclick="showEventDetail('${e.type}', ${e.data.id})">
+    <div class="event-item" onclick="showEventDetail('${e.type}', '${e.data.id}')">
       <div class="event-item-icon">${e.icon}</div>
       <div class="event-item-content">
         <div class="event-item-title">${e.title}</div>
@@ -14488,7 +14588,8 @@ async function saveRdv(event) {
     lieu: document.getElementById('rdvLieu').value,
     opportuniteId: document.getElementById('rdvOpportunite').value || null,
     notes: document.getElementById('rdvNotes').value,
-    statut: 'a_confirmer'
+    statut: 'a_confirmer',
+    ownerId: currentUser.id  // IMPORTANT: Ajouter l'ownerId
   };
   
   if (USE_GOOGLE_SHEETS_API) {
@@ -14515,7 +14616,6 @@ async function saveRdv(event) {
     const rdv = {
       id: (data.lastId.rdv || 0) + 1,
       ...rdvData,
-      ownerId: currentUser.id,
       createdAt: new Date().toISOString()
     };
     
@@ -14839,7 +14939,8 @@ async function saveAppel(event) {
     objet: document.getElementById('appelObjet').value,
     duree: document.getElementById('appelDuree').value || null,
     notes: document.getElementById('appelNotes').value,
-    statut: document.getElementById('appelStatut').value
+    statut: document.getElementById('appelStatut').value,
+    ownerId: currentUser.id  // IMPORTANT: Ajouter l'ownerId
   };
   
   if (USE_GOOGLE_SHEETS_API) {
@@ -14866,7 +14967,6 @@ async function saveAppel(event) {
     const appel = {
       id: (data.lastId.appel || 0) + 1,
       ...appelData,
-      ownerId: currentUser.id,
       createdAt: new Date().toISOString()
     };
     
@@ -15146,7 +15246,8 @@ async function saveTache(event) {
     opportuniteId: document.getElementById('tacheOpportunite').value || null,
     echeance: document.getElementById('tacheEcheance').value || null,
     priorite: document.getElementById('tachePriorite').value,
-    statut: 'a_faire'
+    statut: 'a_faire',
+    ownerId: currentUser.id  // IMPORTANT: Ajouter l'ownerId
   };
   
   if (USE_GOOGLE_SHEETS_API) {
@@ -15173,7 +15274,6 @@ async function saveTache(event) {
     const tache = {
       id: (data.lastId.tache || 0) + 1,
       ...tacheData,
-      ownerId: currentUser.id,
       createdAt: new Date().toISOString()
     };
     
@@ -15886,7 +15986,8 @@ async function saveRdvFromModal(event) {
     objet: form.objet.value,
     lieu: form.lieu?.value || '',
     statut: form.statut?.value || 'a_confirmer',
-    notes: form.notes?.value || ''
+    notes: form.notes?.value || '',
+    ownerId: currentUser.id  // IMPORTANT: Toujours inclure l'ownerId
   };
   
   try {
@@ -15906,7 +16007,7 @@ async function saveRdvFromModal(event) {
         Object.assign(rdv, rdvData);
       } else {
         data.rdv = data.rdv || [];
-        data.rdv.push({ id: Date.now(), ...rdvData, ownerId: currentUser.id });
+        data.rdv.push({ id: Date.now(), ...rdvData });
       }
       result = { success: true };
     }
@@ -15941,7 +16042,8 @@ async function saveAppelFromModal(event) {
     objet: form.objet.value,
     duree: form.duree?.value || '',
     statut: form.statut?.value || 'planifie',
-    notes: form.notes?.value || ''
+    notes: form.notes?.value || '',
+    ownerId: currentUser.id  // IMPORTANT: Toujours inclure l'ownerId
   };
   
   try {
@@ -15960,7 +16062,7 @@ async function saveAppelFromModal(event) {
         Object.assign(appel, appelData);
       } else {
         data.appels = data.appels || [];
-        data.appels.push({ id: Date.now(), ...appelData, ownerId: currentUser.id });
+        data.appels.push({ id: Date.now(), ...appelData });
       }
       result = { success: true };
     }
@@ -15991,7 +16093,8 @@ async function saveTacheFromModal(event) {
     entrepriseId: form.entrepriseId?.value || '',
     echeance: form.echeance?.value || '',
     priorite: form.priorite?.value || 'normale',
-    statut: form.statut?.value || 'a_faire'
+    statut: form.statut?.value || 'a_faire',
+    ownerId: currentUser.id  // IMPORTANT: Toujours inclure l'ownerId
   };
   
   try {
@@ -16010,7 +16113,7 @@ async function saveTacheFromModal(event) {
         Object.assign(tache, tacheData);
       } else {
         data.taches = data.taches || [];
-        data.taches.push({ id: Date.now(), ...tacheData, ownerId: currentUser.id });
+        data.taches.push({ id: Date.now(), ...tacheData });
       }
       result = { success: true };
     }
