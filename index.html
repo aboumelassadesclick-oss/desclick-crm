@@ -24,7 +24,7 @@
   ===================================================== -->
   <script>
   const API_CONFIG = {
-    API_URL: 'https://script.google.com/macros/s/AKfycbxu4ncqWOgSh1_opvFrCiQUnzjkFj_5sGx6kvFyMBPzSzcVwl8Ca-IgFllSbSKn72Vv/exec',
+    API_URL: 'https://script.google.com/macros/s/AKfycbyMWWcxqifxii1Kxh1pBrElg9YBA9k5EDiDC2c_FM4umMgNXFNog7G32Vagolt3MSdG/exec',
     TOKEN_KEY: 'desclick_crm_token',
     USER_KEY: 'desclick_crm_user',
     DEBUG: true // Activer le mode debug
@@ -44,12 +44,20 @@
         params.append('token', this.token);
         
         // Pour les actions CRUD, envoyer les données dans un paramètre 'data'
-        const crudActions = ['createUser', 'updateUser', 'createEntreprise', 'updateEntreprise', 
-                            'createContact', 'updateContact', 'createOpportunite', 'updateOpportunite',
-                            'createProduit', 'updateProduit', 'createPack', 'updatePack',
-                            'createCommande', 'updateCommande', 'createEmail', 'updateEmail', 
-                            'createRdv', 'updateRdv', 'createAppel', 'updateAppel',
-                            'createTache', 'updateTache', 'sendMessage'];
+        const crudActions = ['createUser', 'updateUser', 'deleteUser',
+                            'createEntreprise', 'updateEntreprise', 'deleteEntreprise',
+                            'createContact', 'updateContact', 'deleteContact',
+                            'createOpportunite', 'updateOpportunite', 'deleteOpportunite',
+                            'createProduit', 'updateProduit', 'deleteProduit',
+                            'createPack', 'updatePack', 'deletePack',
+                            'createCommande', 'updateCommande', 'deleteCommande',
+                            'createEmail', 'updateEmail', 'sendEmail',
+                            'createRdv', 'updateRdv', 'deleteRdv',
+                            'createAppel', 'updateAppel', 'deleteAppel',
+                            'createTache', 'updateTache', 'deleteTache',
+                            'createMessage', 'updateMessage', 'deleteMessage', 'markMessagesAsRead',
+                            'createAlerte', 'updateAlerte',
+                            'login', 'updateSetting'];
         
         if (crudActions.includes(action)) {
           // Extraire l'id s'il existe et l'envoyer séparément
@@ -62,7 +70,7 @@
             params.append('data', JSON.stringify(restData));
           }
         } else {
-          // Pour les autres actions, envoyer les paramètres séparément
+          // Pour les autres actions (GET), envoyer les paramètres séparément
           for (const [key, value] of Object.entries(data)) {
             if (value !== undefined && value !== null) {
               if (typeof value === 'object') {
@@ -78,8 +86,6 @@
         
         // Toujours afficher les logs pour le debug
         console.log('🔗 API Request:', action);
-        console.log('📤 Data envoyée:', data);
-        console.log('🌐 URL:', url.substring(0, 300));
         
         // Utiliser GET simple sans headers personnalisés pour éviter CORS preflight
         const response = await fetch(url, {
@@ -91,16 +97,22 @@
         
         const text = await response.text();
         
-        if (API_CONFIG.DEBUG) {
-          console.log('📄 Response body:', text.substring(0, 500));
-        }
+        // Toujours afficher le body pour debug
+        console.log('📄 Response body (preview):', text.substring(0, 300));
         
         let result;
         try {
           result = JSON.parse(text);
         } catch (e) {
-          console.error('❌ JSON Parse Error:', e, 'Text:', text);
+          console.error('❌ JSON Parse Error:', e, 'Text:', text.substring(0, 500));
           throw new Error('Réponse invalide du serveur. Vérifiez que l\'API est correctement déployée.');
+        }
+        
+        // Log du résultat
+        if (result.success) {
+          console.log('✅', action, '- Succès:', Array.isArray(result.data) ? result.data.length + ' éléments' : 'OK');
+        } else {
+          console.warn('⚠️', action, '- Échec:', result.message);
         }
         
         if (!result.success && result.message === 'Non authentifié') {
@@ -6174,11 +6186,13 @@ async function loadData() {
   // Mode Google Sheets API
   try {
     showLoadingOverlay('Chargement des données...');
+    console.log('🌐 Chargement depuis Google Sheets API...');
     
     // Initialiser avec les données par défaut
     data = JSON.parse(JSON.stringify(DEFAULT_DATA));
     
     // Charger toutes les données en parallèle
+    console.log('📡 Envoi des requêtes API...');
     const [entreprisesRes, contactsRes, opportunitesRes, produitsRes, packsRes, 
            emailsRes, rdvRes, appelsRes, tachesRes, usersRes] = await Promise.all([
       api.getEntreprises(),
@@ -6190,22 +6204,35 @@ async function loadData() {
       api.getRdv(),
       api.getAppels(),
       api.getTaches(),
-      api.getUsers()  // Charger les utilisateurs pour TOUS les rôles (messagerie, filtres, etc.)
+      api.getUsers()
     ]);
     
+    // Log détaillé des résultats
+    console.log('📊 === RÉSULTATS API ===');
+    console.log('Entreprises:', entreprisesRes.success ? (entreprisesRes.data?.length || 0) + ' éléments' : 'ERREUR: ' + entreprisesRes.message);
+    console.log('Contacts:', contactsRes.success ? (contactsRes.data?.length || 0) + ' éléments' : 'ERREUR: ' + contactsRes.message);
+    console.log('Opportunités:', opportunitesRes.success ? (opportunitesRes.data?.length || 0) + ' éléments' : 'ERREUR: ' + opportunitesRes.message);
+    console.log('Produits:', produitsRes.success ? (produitsRes.data?.length || 0) + ' éléments' : 'ERREUR: ' + produitsRes.message);
+    console.log('Packs:', packsRes.success ? (packsRes.data?.length || 0) + ' éléments' : 'ERREUR: ' + packsRes.message);
+    console.log('RDV:', rdvRes.success ? (rdvRes.data?.length || 0) + ' éléments' : 'ERREUR: ' + rdvRes.message);
+    console.log('Appels:', appelsRes.success ? (appelsRes.data?.length || 0) + ' éléments' : 'ERREUR: ' + appelsRes.message);
+    console.log('Tâches:', tachesRes.success ? (tachesRes.data?.length || 0) + ' éléments' : 'ERREUR: ' + tachesRes.message);
+    console.log('Users:', usersRes.success ? (usersRes.data?.length || 0) + ' éléments' : 'ERREUR: ' + usersRes.message);
+    console.log('========================');
+    
     // Mettre à jour les données locales
-    data.entreprises = entreprisesRes.success ? entreprisesRes.data : [];
-    data.contacts = contactsRes.success ? contactsRes.data : [];
-    data.opportunites = opportunitesRes.success ? opportunitesRes.data : [];
+    data.entreprises = entreprisesRes.success && Array.isArray(entreprisesRes.data) ? entreprisesRes.data : [];
+    data.contacts = contactsRes.success && Array.isArray(contactsRes.data) ? contactsRes.data : [];
+    data.opportunites = opportunitesRes.success && Array.isArray(opportunitesRes.data) ? opportunitesRes.data : [];
     data.orders = []; // Les commandes sont chargées séparément
-    data.emails = emailsRes.success ? emailsRes.data : [];
-    data.rdv = rdvRes.success ? rdvRes.data : [];
-    data.appels = appelsRes.success ? appelsRes.data : [];
-    data.taches = tachesRes.success ? tachesRes.data : [];
-    data.users = usersRes.success ? usersRes.data : [];
+    data.emails = emailsRes.success && Array.isArray(emailsRes.data) ? emailsRes.data : [];
+    data.rdv = rdvRes.success && Array.isArray(rdvRes.data) ? rdvRes.data : [];
+    data.appels = appelsRes.success && Array.isArray(appelsRes.data) ? appelsRes.data : [];
+    data.taches = tachesRes.success && Array.isArray(tachesRes.data) ? tachesRes.data : [];
+    data.users = usersRes.success && Array.isArray(usersRes.data) ? usersRes.data : [];
     
     // Mettre à jour les catalogues produits et packs
-    if (produitsRes.success && produitsRes.data.length > 0) {
+    if (produitsRes.success && produitsRes.data && produitsRes.data.length > 0) {
       PRODUCT_CATALOGUE.length = 0;
       produitsRes.data.forEach(p => {
         PRODUCT_CATALOGUE.push({
@@ -6224,7 +6251,7 @@ async function loadData() {
       });
     }
     
-    if (packsRes.success && packsRes.data.length > 0) {
+    if (packsRes.success && packsRes.data && packsRes.data.length > 0) {
       PACKS_CATALOGUE.length = 0;
       packsRes.data.forEach(p => {
         PACKS_CATALOGUE.push({
@@ -6245,15 +6272,23 @@ async function loadData() {
     
     // Charger les commandes
     const commandesRes = await api.getCommandes();
-    if (commandesRes.success) {
+    console.log('Commandes:', commandesRes.success ? (commandesRes.data?.length || 0) + ' éléments' : 'ERREUR');
+    if (commandesRes.success && Array.isArray(commandesRes.data)) {
       data.orders = commandesRes.data.map(c => ({
         ...c,
-        products: c.productsJson ? JSON.parse(c.productsJson) : []
+        products: c.productsJson ? JSON.parse(c.productsJson) : (c.products || [])
       }));
     }
     
     hideLoadingOverlay();
-    console.log('✅ Données chargées depuis Google Sheets');
+    
+    // Résumé final
+    console.log('✅ === DONNÉES CHARGÉES ===');
+    console.log('Entreprises:', data.entreprises.length);
+    console.log('Contacts:', data.contacts.length);
+    console.log('Opportunités:', data.opportunites.length);
+    console.log('Users:', data.users.length);
+    console.log('==========================');
     
     // S'assurer que lastId existe (nécessaire pour les messages locaux, etc.)
     if (!data.lastId) data.lastId = {};
@@ -6261,7 +6296,7 @@ async function loadData() {
     if (!data.activities) data.activities = [];
     
   } catch (error) {
-    console.error('Erreur chargement API:', error);
+    console.error('❌ Erreur chargement API:', error);
     hideLoadingOverlay();
     showToast('Erreur', 'Impossible de charger les données: ' + error.message, 'error');
     // Fallback sur les données par défaut
