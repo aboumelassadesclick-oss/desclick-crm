@@ -6652,15 +6652,16 @@ function showPage(pageName) {
     case 'admin-pipeline': 
       try {
         console.log('📍 Navigation vers admin-pipeline');
-        if (!data.opportunites || (data.opportunites || []).length === 0) {
-          console.warn('⚠️ Pas d\'opportunités, tentative de rechargement...');
-          // Afficher les colonnes vides en attendant
-          renderAdminPipelineEmpty();
-        } else {
-          renderAdminPipeline();
-        }
+        // Toujours appeler renderAdminPipeline - elle gère les données vides
+        renderAdminPipeline();
       } catch(e) {
         console.error('❌ Erreur renderAdminPipeline:', e);
+        // En cas d'erreur, afficher les colonnes vides
+        try {
+          renderAdminPipelineEmpty();
+        } catch(e2) {
+          console.error('❌ Erreur renderAdminPipelineEmpty:', e2);
+        }
       }
       break;
     case 'admin-entreprises': renderAdminEntreprises(); break;
@@ -6902,8 +6903,12 @@ function updateChart() {
 }
 
 function renderActivityList() {
-  const activities = (data.activities || []).slice(-10).reverse();
   const container = document.getElementById('activityList');
+  if (!container) return;
+  
+  // S'assurer que data.activities est un tableau
+  const allActivities = Array.isArray(data.activities) ? data.activities : [];
+  const activities = allActivities.slice(-10).reverse();
   
   if (activities.length === 0) {
     container.innerHTML = `
@@ -6919,7 +6924,7 @@ function renderActivityList() {
     <div class="activity-item">
       <div class="activity-icon">${getActivityIcon(a.type)}</div>
       <div class="activity-content">
-        <div class="activity-text">${a.message}</div>
+        <div class="activity-text">${a.message || ''}</div>
         <div class="activity-time">${formatDateTime(a.date)}</div>
       </div>
     </div>
@@ -11104,8 +11109,8 @@ function renderAdminPipeline() {
   console.log('🔄 renderAdminPipeline - DÉBUT');
   
   // Vérifier les données
-  const opps = data.opportunites || [];
-  const users = data.users || [];
+  const opps = Array.isArray(data.opportunites) ? data.opportunites : [];
+  const users = Array.isArray(data.users) ? data.users : [];
   
   console.log('📊 Données:', {
     opportunites: opps.length,
@@ -11114,7 +11119,11 @@ function renderAdminPipeline() {
   });
   
   // Populate filter
-  populateCommercialFilter('filterPipelineCommercial');
+  try {
+    populateCommercialFilter('filterPipelineCommercial');
+  } catch(e) {
+    console.warn('Erreur populateCommercialFilter:', e);
+  }
   
   // Reset color cache
   commercialColorMap = {};
@@ -11168,13 +11177,27 @@ function renderAdminPipeline() {
   if (els.avg) els.avg.textContent = avgProba + '%';
   
   // Generate legend
-  renderCommercialLegend();
+  try {
+    renderCommercialLegend();
+  } catch(e) {
+    console.warn('Erreur renderCommercialLegend:', e);
+  }
   
-  // IMPORTANT: Render Kanban with ALL opportunities (not just active)
-  renderAdminPipelineKanban(opportunites);
+  // IMPORTANT: Toujours render le Kanban, même avec 0 opportunités
+  try {
+    renderAdminPipelineKanban(opportunites);
+  } catch(e) {
+    console.error('Erreur renderAdminPipelineKanban:', e);
+    // Fallback: afficher les colonnes vides
+    renderAdminPipelineEmpty();
+  }
   
   // Render table
-  renderAdminPipelineByUser(opportunites);
+  try {
+    renderAdminPipelineByUser(opportunites);
+  } catch(e) {
+    console.error('Erreur renderAdminPipelineByUser:', e);
+  }
   
   console.log('✅ renderAdminPipeline - FIN');
 }
@@ -11204,28 +11227,56 @@ function renderAdminPipelineKanban(opportunites) {
     return;
   }
   
+  // S'assurer que PIPELINE_STAGES est défini
+  if (typeof PIPELINE_STAGES === 'undefined' || !PIPELINE_STAGES) {
+    console.error('❌ PIPELINE_STAGES non défini!');
+    container.innerHTML = '<div style="padding: 40px; text-align: center; color: red;">Erreur: Étapes du pipeline non définies</div>';
+    return;
+  }
+  
   // Filtrer les stages (exclure les perdus)
   const stages = PIPELINE_STAGES.filter(s => !s.isLost);
-  console.log('📊 Stages à afficher:', stages.map(s => s.id));
+  console.log('📊 Stages à afficher:', stages.length, stages.map(s => s.id));
   
   if (stages.length === 0) {
     container.innerHTML = '<div style="padding: 40px; text-align: center;">Aucune étape définie</div>';
     return;
   }
   
+  // S'assurer que opportunites est un tableau
+  const opps = Array.isArray(opportunites) ? opportunites : [];
+  
   // Générer le HTML des colonnes
   const columnsHTML = stages.map(stage => {
-    const stageOpps = (opportunites || []).filter(o => o.stage === stage.id);
+    const stageOpps = opps.filter(o => o && o.stage === stage.id);
     const total = stageOpps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     
-    console.log(`  - ${stage.id}: ${stageOpps.length} opportunités`);
+    console.log(`  - ${stage.id}: ${stageOpps.length} opportunités, total: ${total}`);
+    
+    // Générer les cartes
+    let cardsHTML = '';
+    if (stageOpps.length > 0) {
+      cardsHTML = stageOpps.slice(0, 15).map(o => {
+        try {
+          return renderAdminPipelineCard(o, stage);
+        } catch(e) {
+          console.error('Erreur rendu carte:', e, o);
+          return '';
+        }
+      }).join('');
+      if (stageOpps.length > 15) {
+        cardsHTML += `<div class="text-muted text-center" style="padding: 8px;">+ ${stageOpps.length - 15} autres...</div>`;
+      }
+    } else {
+      cardsHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 12px;">Aucune opportunité</div>';
+    }
     
     return `
       <div class="pipeline-column" data-stage="${stage.id}"
            ondragover="handleDragOver(event)" 
            ondragleave="handleDragLeave(event)"
            ondrop="handleDrop(event, '${stage.id}')"
-           style="min-width: 250px; min-height: 400px;">
+           style="min-width: 250px; min-height: 400px; flex-shrink: 0;">
         <div class="pipeline-header">
           <div class="pipeline-title">
             <div class="pipeline-color" style="background: ${stage.color};"></div>
@@ -11235,15 +11286,14 @@ function renderAdminPipelineKanban(opportunites) {
           <div class="pipeline-amount">${formatCurrency(total)}</div>
         </div>
         <div class="pipeline-cards" style="min-height: 300px;">
-          ${stageOpps.length > 0 ? stageOpps.slice(0, 15).map(o => renderAdminPipelineCard(o, stage)).join('') : '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 12px;">Aucune opportunité</div>'}
-          ${stageOpps.length > 15 ? `<div class="text-muted text-center" style="padding: 8px;">+ ${stageOpps.length - 15} autres...</div>` : ''}
+          ${cardsHTML}
         </div>
       </div>
     `;
   }).join('');
   
   container.innerHTML = columnsHTML;
-  console.log('✅ Kanban rendu avec', stages.length, 'colonnes');
+  console.log('✅ Kanban rendu avec', stages.length, 'colonnes, HTML length:', columnsHTML.length);
 }
 
 
@@ -11265,18 +11315,26 @@ const COMMERCIAL_COLORS = [
 let commercialColorMap = {};
 
 function getCommercialColor(userId) {
+  if (!userId) return COMMERCIAL_COLORS[0];
+  
   if (!commercialColorMap[userId]) {
-    const commercials = (data.users || []).filter(u => u.role === 'commercial');
-    const index = commercials.findIndex(u => u.id === userId);
-    commercialColorMap[userId] = COMMERCIAL_COLORS[index % COMMERCIAL_COLORS.length];
+    const users = Array.isArray(data.users) ? data.users : [];
+    const commercials = users.filter(u => u.role === 'commercial' || u.role === 'admin');
+    const index = commercials.findIndex(u => String(u.id) === String(userId));
+    commercialColorMap[userId] = COMMERCIAL_COLORS[Math.max(0, index) % COMMERCIAL_COLORS.length];
   }
   return commercialColorMap[userId];
 }
 
 function renderAdminPipelineCard(opp, stage) {
-  const entreprise = data.entreprises.find(e => String(e.id) === String(opp.entrepriseId));
-  const owner = data.users.find(u => String(u.id) === String(opp.ownerId));
-  const colors = getCommercialColor(opp.ownerId);
+  if (!opp) return '';
+  
+  const entreprises = Array.isArray(data.entreprises) ? data.entreprises : [];
+  const users = Array.isArray(data.users) ? data.users : [];
+  
+  const entreprise = entreprises.find(e => String(e.id) === String(opp.entrepriseId));
+  const owner = users.find(u => String(u.id) === String(opp.ownerId));
+  const colors = getCommercialColor(opp.ownerId) || { bg: '#f5f5f5', border: '#999', text: '#333' };
   
   return `
     <div class="pipeline-card" draggable="true"
@@ -11285,16 +11343,16 @@ function renderAdminPipelineCard(opp, stage) {
          onclick="openModal('opportunite', '${opp.id}')" 
          style="background: ${colors.bg}; border-left: 4px solid ${colors.border}; cursor: grab;">
       <div class="pipeline-card-header">
-        <div class="pipeline-card-title" style="color: ${colors.text};">${opp.name}</div>
+        <div class="pipeline-card-title" style="color: ${colors.text};">${opp.name || 'Sans nom'}</div>
       </div>
       <div class="pipeline-card-company">${entreprise?.name || '-'}</div>
       <div class="pipeline-card-footer">
-        <div class="pipeline-card-amount">${formatCurrency(opp.amount)}</div>
+        <div class="pipeline-card-amount">${formatCurrency(opp.amount || 0)}</div>
         <div class="pipeline-card-probability">
           <div class="probability-bar">
-            <div class="probability-fill" style="width: ${opp.probability}%; background: ${colors.border};"></div>
+            <div class="probability-fill" style="width: ${opp.probability || 0}%; background: ${colors.border};"></div>
           </div>
-          ${opp.probability}%
+          ${opp.probability || 0}%
         </div>
       </div>
       <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid ${colors.border}40; font-size: 11px; color: ${colors.text}; display: flex; align-items: center; gap: 5px;">
@@ -11307,7 +11365,10 @@ function renderAdminPipelineCard(opp, stage) {
 
 function renderAdminPipelineByUser(allOpportunites) {
   const container = document.getElementById('adminPipelineByUserTable');
-  const users = (data.users || []).filter(u => u.role === 'commercial' || u.role === 'admin');
+  if (!container) return;
+  
+  const users = Array.isArray(data.users) ? data.users.filter(u => u.role === 'commercial' || u.role === 'admin') : [];
+  const opps = Array.isArray(allOpportunites) ? allOpportunites : [];
   
   if (users.length === 0) {
     container.innerHTML = '<tr><td colspan="10" class="text-muted" style="text-align: center; padding: 2rem;">Aucun commercial</td></tr>';
@@ -11319,7 +11380,7 @@ function renderAdminPipelineByUser(allOpportunites) {
   
   container.innerHTML = users.map(u => {
     const userId = String(u.id);
-    const userOpps = allOpportunites.filter(o => String(o.ownerId) === userId);
+    const userOpps = opps.filter(o => String(o.ownerId) === userId);
     
     // Count and sum by stage
     const byStage = {};
