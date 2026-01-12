@@ -6074,6 +6074,7 @@ const DEFAULT_DATA = {
 let data = {};
 let currentUser = null;
 let currentChat = null;
+let currentPage = 'dashboard';
 let bcState = { files: [], formData: null };
 let bcSignatureCanvas, bcSignatureCtx;
 let bcIsDrawing = false, bcHasDrawn = false;
@@ -6627,6 +6628,9 @@ function showApp() {
 // =====================================================
 
 function showPage(pageName) {
+  // Sauvegarder la page courante
+  currentPage = pageName;
+  
   // Hide all pages
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   
