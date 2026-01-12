@@ -6252,6 +6252,11 @@ async function loadData() {
     hideLoadingOverlay();
     console.log('✅ Données chargées depuis Google Sheets');
     
+    // S'assurer que lastId existe (nécessaire pour les messages locaux, etc.)
+    if (!data.lastId) data.lastId = {};
+    if (!data.messages) data.messages = [];
+    if (!data.activities) data.activities = [];
+    
   } catch (error) {
     console.error('Erreur chargement API:', error);
     hideLoadingOverlay();
@@ -9930,6 +9935,25 @@ function exportBCHistory() {
 
 function renderMessaging() {
   console.log('📧 renderMessaging - data.users:', (data.users || []).length, 'utilisateurs');
+  
+  // Charger les messages depuis localStorage (même en mode API)
+  try {
+    const storedMessages = localStorage.getItem('crm_messages');
+    if (storedMessages) {
+      const parsed = JSON.parse(storedMessages);
+      if (parsed.messages && Array.isArray(parsed.messages)) {
+        data.messages = parsed.messages;
+        if (!data.lastId) data.lastId = {};
+        data.lastId.message = parsed.lastMessageId || 0;
+        console.log('💾 Messages chargés depuis localStorage:', data.messages.length);
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ Erreur chargement messages:', e);
+  }
+  
+  if (!data.messages) data.messages = [];
+  
   renderConversations();
 }
 
@@ -9993,6 +10017,8 @@ function getConversationMessages(userId1, userId2) {
 
 function openChat(userId) {
   currentChat = String(userId);
+  console.log('💬 openChat:', currentChat);
+  
   const user = (data.users || []).find(u => String(u.id) === currentChat);
   
   if (!user) {
@@ -10001,18 +10027,39 @@ function openChat(userId) {
   }
   
   // Update header
-  document.getElementById('chatHeaderInfo').innerHTML = `
-    <strong>${user.firstName || ''} ${user.lastName || ''}</strong>
-    <span class="text-muted" style="margin-left: 8px;">${user.role === 'admin' ? 'Admin' : 'Commercial'}</span>
-  `;
+  const headerInfo = document.getElementById('chatHeaderInfo');
+  if (headerInfo) {
+    headerInfo.innerHTML = `
+      <strong>${user.firstName || ''} ${user.lastName || ''}</strong>
+      <span class="text-muted" style="margin-left: 8px;">${user.role === 'admin' ? 'Admin' : 'Commercial'}</span>
+    `;
+  }
   
   // Mark messages as read
+  let hasChanges = false;
   (data.messages || []).forEach(m => {
-    if (String(m.fromId) === currentChat && String(m.toId) === String(currentUser.id)) {
+    if (String(m.fromId) === currentChat && String(m.toId) === String(currentUser.id) && !m.read) {
       m.read = true;
+      hasChanges = true;
     }
   });
-  saveData();
+  
+  // Sauvegarder si des messages ont été marqués comme lus
+  if (hasChanges) {
+    try {
+      const messagesData = {
+        messages: data.messages,
+        lastMessageId: data.lastId?.message || 0
+      };
+      localStorage.setItem('crm_messages', JSON.stringify(messagesData));
+    } catch (e) {
+      console.warn('⚠️ Erreur sauvegarde messages:', e);
+    }
+    
+    if (!USE_GOOGLE_SHEETS_API) {
+      saveData();
+    }
+  }
   
   renderChatMessages();
   renderConversations();
@@ -10056,31 +10103,64 @@ function handleChatKeypress(e) {
 }
 
 function sendChatMessage() {
+  console.log('📤 sendChatMessage - currentChat:', currentChat);
+  
   if (!currentChat) {
     showToast('Info', 'Sélectionnez un destinataire', 'info');
     return;
   }
   
   const input = document.getElementById('chatInput');
-  const content = input.value.trim();
-  if (!content) return;
+  if (!input) {
+    console.error('❌ Input chatInput non trouvé');
+    return;
+  }
   
+  const content = input.value.trim();
+  if (!content) {
+    console.log('⚠️ Message vide');
+    return;
+  }
+  
+  // S'assurer que les structures existent
   if (!data.messages) data.messages = [];
+  if (!data.lastId) data.lastId = {};
   data.lastId.message = (data.lastId.message || 0) + 1;
   
-  data.messages.push({
+  const newMessage = {
     id: data.lastId.message,
-    fromId: currentUser.id,
-    toId: currentChat,
+    fromId: String(currentUser.id),
+    toId: String(currentChat),
     content: content,
     read: false,
     date: new Date().toISOString()
-  });
+  };
   
-  saveData();
+  data.messages.push(newMessage);
+  console.log('✅ Message ajouté:', newMessage);
+  
+  // Sauvegarder les messages dans localStorage (même en mode API)
+  // Les messages sont des données locales, pas synchronisées avec Google Sheets
+  try {
+    const messagesData = {
+      messages: data.messages,
+      lastMessageId: data.lastId.message
+    };
+    localStorage.setItem('crm_messages', JSON.stringify(messagesData));
+    console.log('💾 Messages sauvegardés dans localStorage');
+  } catch (e) {
+    console.warn('⚠️ Erreur sauvegarde messages:', e);
+  }
+  
+  // En mode localStorage, sauvegarder aussi via saveData
+  if (!USE_GOOGLE_SHEETS_API) {
+    saveData();
+  }
+  
   input.value = '';
   renderChatMessages();
   renderConversations();
+  showToast('Envoyé', 'Message envoyé', 'success');
 }
 
 // =====================================================
