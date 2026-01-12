@@ -3433,97 +3433,160 @@
     
     .calendar-day-header {
       text-align: center;
-      padding: var(--space-sm);
+      padding: var(--space-sm) var(--space-xs);
       font-weight: 600;
-      font-size: var(--text-sm);
+      font-size: var(--text-xs);
       color: var(--text-secondary);
       text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-sm);
     }
     
     .calendar-day-header.weekend {
       color: var(--danger);
+      background: rgba(239, 68, 68, 0.1);
     }
     
     .calendar-days {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 2px;
+      gap: 3px;
     }
     
     .calendar-day {
-      min-height: 100px;
-      background: var(--bg-secondary);
-      border-radius: var(--radius-sm);
+      min-height: 110px;
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
       padding: var(--space-xs);
       cursor: pointer;
       transition: all var(--transition-fast);
-      border: 1px solid transparent;
+      border: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
     }
     
     .calendar-day:hover {
       background: var(--bg-hover);
       border-color: var(--brand-primary);
+      box-shadow: 0 2px 8px rgba(43, 94, 167, 0.15);
+      transform: translateY(-1px);
     }
     
     .calendar-day.other-month {
-      opacity: 0.4;
+      opacity: 0.35;
+      background: var(--bg-secondary);
     }
     
     .calendar-day.today {
-      background: rgba(43, 94, 167, 0.2);
+      background: linear-gradient(135deg, rgba(43, 94, 167, 0.1) 0%, rgba(43, 94, 167, 0.05) 100%);
       border-color: var(--brand-primary);
+      box-shadow: inset 0 0 0 1px var(--brand-primary);
     }
     
     .calendar-day-number {
       font-weight: 600;
       font-size: var(--text-sm);
       margin-bottom: var(--space-xs);
+      color: var(--text-primary);
     }
     
     .calendar-day.today .calendar-day-number {
-      background: var(--brand-primary);
+      background: linear-gradient(135deg, var(--brand-primary) 0%, #1e4a8a 100%);
       color: white;
-      width: 24px;
-      height: 24px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: var(--text-xs);
+      box-shadow: 0 2px 4px rgba(43, 94, 167, 0.3);
+    }
+    
+    .calendar-events-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
     }
     
     .calendar-event {
-      font-size: 10px;
-      padding: 2px 4px;
-      border-radius: 3px;
-      margin-bottom: 2px;
+      font-size: 11px;
+      padding: 4px 6px;
+      border-radius: var(--radius-sm);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       cursor: pointer;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all var(--transition-fast);
+    }
+    
+    .calendar-event:hover {
+      transform: scale(1.02);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .calendar-event-icon {
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+    
+    .calendar-event-time {
+      font-size: 9px;
+      opacity: 0.8;
+      font-weight: 600;
+    }
+    
+    .calendar-event-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     
     .calendar-event.rdv {
-      background: rgba(16, 185, 129, 0.2);
-      color: var(--success);
-      border-left: 2px solid var(--success);
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%);
+      color: #059669;
+      border-left: 3px solid var(--success);
     }
     
     .calendar-event.appel {
-      background: rgba(43, 94, 167, 0.2);
+      background: linear-gradient(135deg, rgba(43, 94, 167, 0.2) 0%, rgba(43, 94, 167, 0.1) 100%);
       color: var(--brand-primary);
-      border-left: 2px solid var(--brand-primary);
+      border-left: 3px solid var(--brand-primary);
     }
     
     .calendar-event.tache {
-      background: rgba(245, 166, 35, 0.2);
-      color: var(--warning);
-      border-left: 2px solid var(--warning);
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.2) 0%, rgba(245, 166, 35, 0.1) 100%);
+      color: #d97706;
+      border-left: 3px solid var(--warning);
     }
     
     .calendar-event.email {
-      background: rgba(139, 92, 246, 0.2);
-      color: #8B5CF6;
-      border-left: 2px solid #8B5CF6;
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(139, 92, 246, 0.1) 100%);
+      color: #7c3aed;
+      border-left: 3px solid #8B5CF6;
+    }
+    
+    .calendar-event.opportunite {
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.2) 0%, rgba(236, 72, 153, 0.1) 100%);
+      color: #db2777;
+      border-left: 3px solid #ec4899;
+    }
+    
+    .calendar-more-events {
+      font-size: 10px;
+      color: var(--text-muted);
+      padding: 2px 4px;
+      text-align: center;
+      font-weight: 500;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-sm);
+      margin-top: auto;
     }
     
     .calendar-sidebar .card {
@@ -14115,14 +14178,20 @@ function renderCalendrier() {
     dayEl.className = `calendar-day${isToday ? ' today' : ''}`;
     dayEl.onclick = () => openDayDetail(dateStr);
     
+    const eventsHtml = dayEvents.slice(0, 3).map(e => `
+      <div class="calendar-event ${e.type}" title="${e.title}${e.meta ? ' - ' + e.meta : ''}">
+        <span class="calendar-event-icon">${e.icon}</span>
+        ${e.time ? `<span class="calendar-event-time">${e.time}</span>` : ''}
+        <span class="calendar-event-title">${(e.title || '').substring(0, 12)}${(e.title || '').length > 12 ? '…' : ''}</span>
+      </div>
+    `).join('');
+    
     dayEl.innerHTML = `
       <div class="calendar-day-number">${day}</div>
-      ${dayEvents.slice(0, 3).map(e => `
-        <div class="calendar-event ${e.type}" title="${e.title}">
-          ${e.time ? e.time + ' ' : ''}${(e.title || '').substring(0, 15)}${(e.title || '').length > 15 ? '...' : ''}
-        </div>
-      `).join('')}
-      ${dayEvents.length > 3 ? `<div style="font-size: 10px; color: var(--text-muted);">+${dayEvents.length - 3} autres</div>` : ''}
+      <div class="calendar-events-container">
+        ${eventsHtml}
+        ${dayEvents.length > 3 ? `<div class="calendar-more-events">+${dayEvents.length - 3} autre${dayEvents.length - 3 > 1 ? 's' : ''}</div>` : ''}
+      </div>
     `;
     
     container.appendChild(dayEl);
@@ -14383,39 +14452,58 @@ function openNewEmailModal() {
   document.getElementById('modalTitle').textContent = '✉️ Nouveau message';
   document.getElementById('modalBody').innerHTML = `
     <form id="emailForm" onsubmit="saveEmail(event)">
-      <div class="form-group">
-        <label class="form-label">Entreprise</label>
-        <select class="form-control" id="emailEntreprise" onchange="updateEmailContacts()">
-          <option value="">-- Sélectionner --</option>
-          ${entrepriseOptions}
-        </select>
+      <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+        <div class="form-group">
+          <label class="form-label">Entreprise</label>
+          <select class="form-control" id="emailEntreprise" onchange="updateEmailContacts()">
+            <option value="">-- Sélectionner --</option>
+            ${entrepriseOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contact / Destinataire <span class="required">*</span></label>
+          <select class="form-control" id="emailContact" required onchange="updateEmailTo()">
+            <option value="">-- Sélectionner un contact --</option>
+            ${contactOptions}
+          </select>
+        </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Contact / Destinataire <span class="required">*</span></label>
-        <select class="form-control" id="emailContact" required>
-          <option value="">-- Sélectionner un contact --</option>
-          ${contactOptions}
-        </select>
+        <label class="form-label">Adresse email destinataire</label>
+        <input type="email" class="form-control" id="emailTo" placeholder="email@exemple.com" readonly style="background: var(--bg-secondary);">
       </div>
       <div class="form-group">
         <label class="form-label">Sujet <span class="required">*</span></label>
-        <input type="text" class="form-control" id="emailSubject" required>
+        <input type="text" class="form-control" id="emailSubject" required placeholder="Objet de votre message">
       </div>
       <div class="form-group">
         <label class="form-label">Message</label>
-        <textarea class="form-control" id="emailBody" rows="6" placeholder="Rédigez votre message..."></textarea>
+        <textarea class="form-control" id="emailBody" rows="8" placeholder="Rédigez votre message..."></textarea>
       </div>
       <div class="form-group">
-        <label class="form-label">Statut</label>
-        <select class="form-control" id="emailStatut">
-          <option value="brouillon">Brouillon</option>
-          <option value="a_envoyer">À envoyer</option>
-          <option value="envoye">Marqué comme envoyé</option>
-        </select>
+        <label class="form-label">CC (optionnel)</label>
+        <input type="text" class="form-control" id="emailCc" placeholder="email1@exemple.com, email2@exemple.com">
       </div>
+      
+      <div style="background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius-md); margin-bottom: var(--space-md);">
+        <div style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm);">
+          <span style="font-size: 16px;">📧</span>
+          <strong>Expéditeur</strong>
+        </div>
+        <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+          L'email sera envoyé depuis <strong>${currentUser?.email || 'votre adresse'}</strong> 
+          (${currentUser?.firstName || ''} ${currentUser?.lastName || ''})
+        </p>
+      </div>
+      
       <div class="modal-actions">
         <button type="button" class="btn" onclick="closeMainModal()">Annuler</button>
-        <button type="submit" class="btn btn-primary">Enregistrer</button>
+        <button type="button" class="btn btn-secondary" onclick="saveEmailAsDraft()">
+          💾 Brouillon
+        </button>
+        <button type="submit" class="btn btn-primary">
+          📤 Envoyer maintenant
+        </button>
       </div>
     </form>
   `;
@@ -14427,18 +14515,91 @@ function openNewEmailModal() {
 }
 
 function updateEmailContacts() {
-  const entrepriseId = parseInt(document.getElementById('emailEntreprise').value);
+  const entrepriseId = document.getElementById('emailEntreprise').value;
   const contactSelect = document.getElementById('emailContact');
   
   if (!entrepriseId) {
     contactSelect.innerHTML = '<option value="">-- Sélectionner un contact --</option>' + 
-      (data.contacts || []).map(c => `<option value="${c.id}">${c.firstName} ${c.lastName} - ${c.email}</option>`).join('');
+      (data.contacts || []).map(c => `<option value="${c.id}" data-email="${c.email || ''}">${c.firstName} ${c.lastName}${c.email ? ' - ' + c.email : ''}</option>`).join('');
+  } else {
+    const filteredContacts = (data.contacts || []).filter(c => String(c.entrepriseId) === String(entrepriseId));
+    contactSelect.innerHTML = '<option value="">-- Sélectionner un contact --</option>' + 
+      filteredContacts.map(c => `<option value="${c.id}" data-email="${c.email || ''}">${c.firstName} ${c.lastName}${c.email ? ' - ' + c.email : ''}</option>`).join('');
+  }
+  
+  // Reset email field
+  const emailTo = document.getElementById('emailTo');
+  if (emailTo) emailTo.value = '';
+}
+
+function updateEmailTo() {
+  const contactSelect = document.getElementById('emailContact');
+  const emailTo = document.getElementById('emailTo');
+  const contactId = contactSelect.value;
+  
+  if (contactId && emailTo) {
+    const contact = (data.contacts || []).find(c => String(c.id) === String(contactId));
+    emailTo.value = contact?.email || '';
+  } else if (emailTo) {
+    emailTo.value = '';
+  }
+}
+
+async function saveEmailAsDraft() {
+  const contactId = document.getElementById('emailContact').value;
+  const contact = data.contacts.find(c => String(c.id) === String(contactId));
+  
+  if (!contact) {
+    showToast('Erreur', 'Veuillez sélectionner un contact', 'error');
     return;
   }
   
-  const filteredContacts = (data.contacts || []).filter(c => c.entrepriseId === entrepriseId);
-  contactSelect.innerHTML = '<option value="">-- Sélectionner un contact --</option>' + 
-    filteredContacts.map(c => `<option value="${c.id}">${c.firstName} ${c.lastName} - ${c.email}</option>`).join('');
+  const emailData = {
+    type: 'sortant',
+    to: contact.email,
+    from: currentUser.email,
+    cc: document.getElementById('emailCc')?.value || '',
+    subject: document.getElementById('emailSubject').value,
+    body: document.getElementById('emailBody').value,
+    entrepriseId: contact.entrepriseId,
+    contactId: contactId,
+    statut: 'brouillon',
+    ownerId: currentUser.id
+  };
+  
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      showLoadingOverlay('Enregistrement du brouillon...');
+      const result = await api.createEmail(emailData);
+      hideLoadingOverlay();
+      
+      if (result.success) {
+        const emailsRes = await api.getEmails();
+        if (emailsRes.success) data.emails = emailsRes.data;
+        closeMainModal();
+        renderEmails();
+        showToast('Succès', 'Brouillon enregistré', 'success');
+      } else {
+        showToast('Erreur', result.message || 'Erreur', 'error');
+      }
+    } catch (error) {
+      hideLoadingOverlay();
+      showToast('Erreur', error.message, 'error');
+    }
+  } else {
+    const email = {
+      id: (data.lastId.email || 0) + 1,
+      ...emailData,
+      createdAt: new Date().toISOString()
+    };
+    data.lastId.email = email.id;
+    data.emails = data.emails || [];
+    data.emails.push(email);
+    saveData();
+    closeMainModal();
+    renderEmails();
+    showToast('Succès', 'Brouillon enregistré', 'success');
+  }
 }
 
 async function saveEmail(event) {
@@ -14452,42 +14613,59 @@ async function saveEmail(event) {
     return;
   }
   
+  if (!contact.email) {
+    showToast('Erreur', 'Ce contact n\'a pas d\'adresse email', 'error');
+    return;
+  }
+  
+  const subject = document.getElementById('emailSubject').value;
+  if (!subject.trim()) {
+    showToast('Erreur', 'Veuillez saisir un sujet', 'error');
+    return;
+  }
+  
   const emailData = {
     type: 'sortant',
     to: contact.email,
     from: currentUser.email,
-    subject: document.getElementById('emailSubject').value,
+    fromName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.username,
+    replyTo: currentUser.email,
+    cc: document.getElementById('emailCc')?.value || '',
+    subject: subject,
     body: document.getElementById('emailBody').value,
     entrepriseId: contact.entrepriseId,
     contactId: contactId,
-    statut: document.getElementById('emailStatut').value,
-    dateEnvoi: document.getElementById('emailStatut').value === 'envoye' ? new Date().toISOString() : null
+    ownerId: currentUser.id
   };
   
   if (USE_GOOGLE_SHEETS_API) {
     try {
-      showLoadingOverlay('Enregistrement...');
-      const result = await api.createEmail(emailData);
+      showLoadingOverlay('Envoi de l\'email en cours...');
+      
+      // Envoyer l'email via l'API
+      const result = await api.request('sendEmail', emailData);
       hideLoadingOverlay();
       
       if (result.success) {
+        // Recharger les emails
         const emailsRes = await api.getEmails();
         if (emailsRes.success) data.emails = emailsRes.data;
         closeMainModal();
         renderEmails();
-        showToast('Succès', 'Email enregistré', 'success');
+        showToast('Succès', '✅ Email envoyé à ' + contact.email, 'success');
       } else {
-        showToast('Erreur', result.message || 'Erreur', 'error');
+        showToast('Erreur', result.message || 'Erreur lors de l\'envoi', 'error');
       }
     } catch (error) {
       hideLoadingOverlay();
-      showToast('Erreur', error.message, 'error');
+      showToast('Erreur', 'Erreur: ' + error.message, 'error');
     }
   } else {
+    // Mode hors-ligne - juste enregistrer
     const email = {
       id: (data.lastId.email || 0) + 1,
       ...emailData,
-      ownerId: currentUser.id,
+      statut: 'a_envoyer',
       createdAt: new Date().toISOString()
     };
     
@@ -14498,7 +14676,7 @@ async function saveEmail(event) {
     
     closeMainModal();
     renderEmails();
-    showToast('Succès', 'Email enregistré', 'success');
+    showToast('Info', 'Email enregistré (envoi différé - mode hors-ligne)', 'info');
   }
 }
 
@@ -14532,29 +14710,60 @@ function viewEmail(id) {
 
 async function sendEmail(id) {
   const email = data.emails.find(e => String(e.id) === String(id));
-  if (email) {
-    if (USE_GOOGLE_SHEETS_API) {
-      try {
-        const result = await api.updateEmail(id, { 
+  if (!email) {
+    showToast('Erreur', 'Email non trouvé', 'error');
+    return;
+  }
+  
+  if (!email.to) {
+    showToast('Erreur', 'Aucun destinataire défini', 'error');
+    return;
+  }
+  
+  if (USE_GOOGLE_SHEETS_API) {
+    try {
+      showLoadingOverlay('Envoi de l\'email...');
+      
+      // Préparer les données pour l'envoi
+      const emailData = {
+        to: email.to,
+        subject: email.subject,
+        body: email.body,
+        cc: email.cc || '',
+        fromName: currentUser ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() : '',
+        replyTo: currentUser?.email || email.from
+      };
+      
+      // Envoyer via l'API
+      const result = await api.request('sendEmail', emailData);
+      
+      if (result.success) {
+        // Mettre à jour le statut
+        await api.updateEmail(id, { 
           statut: 'envoye', 
           dateEnvoi: new Date().toISOString() 
         });
-        if (result.success) {
-          email.statut = 'envoye';
-          email.dateEnvoi = new Date().toISOString();
-          renderEmails();
-          showToast('Envoyé', 'Email marqué comme envoyé', 'success');
-        }
-      } catch (error) {
-        showToast('Erreur', error.message, 'error');
+        
+        email.statut = 'envoye';
+        email.dateEnvoi = new Date().toISOString();
+        hideLoadingOverlay();
+        renderEmails();
+        showToast('Succès', '✅ Email envoyé à ' + email.to, 'success');
+      } else {
+        hideLoadingOverlay();
+        showToast('Erreur', result.message || 'Erreur d\'envoi', 'error');
       }
-    } else {
-      email.statut = 'envoye';
-      email.dateEnvoi = new Date().toISOString();
-      saveData();
-      renderEmails();
-      showToast('Envoyé', 'Email marqué comme envoyé', 'success');
+    } catch (error) {
+      hideLoadingOverlay();
+      showToast('Erreur', error.message, 'error');
     }
+  } else {
+    // Mode hors-ligne
+    email.statut = 'envoye';
+    email.dateEnvoi = new Date().toISOString();
+    saveData();
+    renderEmails();
+    showToast('Info', 'Email marqué comme envoyé (mode hors-ligne)', 'info');
   }
 }
 
