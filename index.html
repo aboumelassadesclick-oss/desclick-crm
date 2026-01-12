@@ -4976,8 +4976,12 @@
             </div>
           </div>
           <div class="card-body" style="padding: 0; overflow-x: auto;">
-            <div class="pipeline-container" id="adminPipelineContainer" style="min-width: max-content;">
-              <!-- Pipeline columns will be rendered by JS -->
+            <div class="pipeline-container" id="adminPipelineContainer" style="min-width: max-content; display: flex; gap: 12px; padding: 16px;">
+              <!-- Contenu par défaut - sera remplacé par JS -->
+              <div style="padding: 40px; text-align: center; color: var(--text-muted); width: 100%;">
+                <p>⏳ Chargement du pipeline...</p>
+                <button class="btn btn-primary" onclick="renderAdminPipeline()">🔄 Recharger</button>
+              </div>
             </div>
           </div>
         </div>
@@ -6650,19 +6654,43 @@ function showPage(pageName) {
     case 'equipe': renderEquipe(); break;
     case 'consolidation': renderConsolidation(); break;
     case 'admin-pipeline': 
-      try {
-        console.log('📍 Navigation vers admin-pipeline');
-        // Toujours appeler renderAdminPipeline - elle gère les données vides
-        renderAdminPipeline();
-      } catch(e) {
-        console.error('❌ Erreur renderAdminPipeline:', e);
-        // En cas d'erreur, afficher les colonnes vides
+      (async () => {
         try {
-          renderAdminPipelineEmpty();
-        } catch(e2) {
-          console.error('❌ Erreur renderAdminPipelineEmpty:', e2);
+          console.log('📍 ========================================');
+          console.log('📍 Navigation vers admin-pipeline');
+          console.log('📍 ========================================');
+          console.log('📊 data.opportunites:', data.opportunites?.length || 0, 'éléments');
+          console.log('📊 data.users:', data.users?.length || 0, 'éléments');
+          console.log('📊 PIPELINE_STAGES:', PIPELINE_STAGES?.length || 0, 'étapes');
+          
+          // Forcer le rechargement des données si nécessaire
+          if (!data.opportunites || data.opportunites.length === 0) {
+            console.log('⚠️ Pas d\'opportunités - tentative de rechargement...');
+            if (USE_GOOGLE_SHEETS_API && typeof api !== 'undefined') {
+              try {
+                const oppRes = await api.getOpportunites();
+                if (oppRes.success) {
+                  data.opportunites = oppRes.data;
+                  console.log('✅ Opportunités rechargées:', data.opportunites.length);
+                }
+              } catch(e) {
+                console.warn('Erreur rechargement opportunités:', e);
+              }
+            }
+          }
+          
+          // Toujours appeler renderAdminPipeline
+          renderAdminPipeline();
+        } catch(e) {
+          console.error('❌ Erreur renderAdminPipeline:', e);
+          console.error('Stack:', e.stack);
+          try {
+            renderAdminPipelineEmpty();
+          } catch(e2) {
+            console.error('❌ Erreur renderAdminPipelineEmpty:', e2);
+          }
         }
-      }
+      })();
       break;
     case 'admin-entreprises': renderAdminEntreprises(); break;
     case 'admin-contacts': renderAdminContacts(); break;
@@ -11219,16 +11247,19 @@ function renderCommercialLegend() {
 }
 
 function renderAdminPipelineKanban(opportunites) {
-  console.log('🎯 renderAdminPipelineKanban appelé avec', opportunites?.length || 0, 'opportunités');
+  console.log('🎯 renderAdminPipelineKanban - DÉBUT');
   
   const container = document.getElementById('adminPipelineContainer');
   if (!container) {
     console.error('❌ Container adminPipelineContainer non trouvé!');
+    alert('Erreur: Container adminPipelineContainer non trouvé');
     return;
   }
   
+  console.log('✅ Container trouvé:', container);
+  
   // S'assurer que PIPELINE_STAGES est défini
-  if (typeof PIPELINE_STAGES === 'undefined' || !PIPELINE_STAGES) {
+  if (typeof PIPELINE_STAGES === 'undefined' || !PIPELINE_STAGES || !Array.isArray(PIPELINE_STAGES)) {
     console.error('❌ PIPELINE_STAGES non défini!');
     container.innerHTML = '<div style="padding: 40px; text-align: center; color: red;">Erreur: Étapes du pipeline non définies</div>';
     return;
@@ -11245,9 +11276,12 @@ function renderAdminPipelineKanban(opportunites) {
   
   // S'assurer que opportunites est un tableau
   const opps = Array.isArray(opportunites) ? opportunites : [];
+  console.log('📊 Opportunités à afficher:', opps.length);
   
   // Générer le HTML des colonnes
-  const columnsHTML = stages.map(stage => {
+  let columnsHTML = '';
+  
+  for (const stage of stages) {
     const stageOpps = opps.filter(o => o && o.stage === stage.id);
     const total = stageOpps.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
     
@@ -11256,44 +11290,42 @@ function renderAdminPipelineKanban(opportunites) {
     // Générer les cartes
     let cardsHTML = '';
     if (stageOpps.length > 0) {
-      cardsHTML = stageOpps.slice(0, 15).map(o => {
+      for (const o of stageOpps.slice(0, 15)) {
         try {
-          return renderAdminPipelineCard(o, stage);
+          cardsHTML += renderAdminPipelineCard(o, stage);
         } catch(e) {
           console.error('Erreur rendu carte:', e, o);
-          return '';
         }
-      }).join('');
+      }
       if (stageOpps.length > 15) {
-        cardsHTML += `<div class="text-muted text-center" style="padding: 8px;">+ ${stageOpps.length - 15} autres...</div>`;
+        cardsHTML += '<div class="text-muted text-center" style="padding: 8px;">+ ' + (stageOpps.length - 15) + ' autres...</div>';
       }
     } else {
       cardsHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 12px;">Aucune opportunité</div>';
     }
     
-    return `
-      <div class="pipeline-column" data-stage="${stage.id}"
-           ondragover="handleDragOver(event)" 
-           ondragleave="handleDragLeave(event)"
-           ondrop="handleDrop(event, '${stage.id}')"
-           style="min-width: 250px; min-height: 400px; flex-shrink: 0;">
-        <div class="pipeline-header">
-          <div class="pipeline-title">
-            <div class="pipeline-color" style="background: ${stage.color};"></div>
-            ${stage.name}
-            <span class="pipeline-count">${stageOpps.length}</span>
-          </div>
-          <div class="pipeline-amount">${formatCurrency(total)}</div>
-        </div>
-        <div class="pipeline-cards" style="min-height: 300px;">
-          ${cardsHTML}
-        </div>
-      </div>
-    `;
-  }).join('');
+    columnsHTML += '<div class="pipeline-column" data-stage="' + stage.id + '" ' +
+      'ondragover="handleDragOver(event)" ' +
+      'ondragleave="handleDragLeave(event)" ' +
+      'ondrop="handleDrop(event, \'' + stage.id + '\')" ' +
+      'style="min-width: 250px; min-height: 400px; flex-shrink: 0; background: var(--bg-secondary); border-radius: 8px; margin-right: 12px;">' +
+      '<div class="pipeline-header" style="padding: 12px; border-bottom: 1px solid var(--border-default);">' +
+        '<div class="pipeline-title" style="display: flex; align-items: center; gap: 8px;">' +
+          '<div class="pipeline-color" style="width: 12px; height: 12px; border-radius: 50%; background: ' + stage.color + ';"></div>' +
+          '<span style="font-weight: 600;">' + stage.name + '</span>' +
+          '<span class="pipeline-count" style="background: var(--bg-tertiary); padding: 2px 8px; border-radius: 10px; font-size: 12px;">' + stageOpps.length + '</span>' +
+        '</div>' +
+        '<div class="pipeline-amount" style="font-size: 14px; color: var(--text-muted); margin-top: 4px;">' + formatCurrency(total) + '</div>' +
+      '</div>' +
+      '<div class="pipeline-cards" style="padding: 12px; min-height: 300px;">' +
+        cardsHTML +
+      '</div>' +
+    '</div>';
+  }
   
+  console.log('📝 HTML généré, longueur:', columnsHTML.length);
   container.innerHTML = columnsHTML;
-  console.log('✅ Kanban rendu avec', stages.length, 'colonnes, HTML length:', columnsHTML.length);
+  console.log('✅ Kanban rendu avec', stages.length, 'colonnes');
 }
 
 
